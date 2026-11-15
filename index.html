@@ -376,30 +376,22 @@ label.f .up { text-transform: uppercase; }
           <button type="button" class="btn small danger" id="btnCnNew">New Credit Note</button>
         </div>
 
-        <!-- Fallback preview for narrow screens (hidden on wide) -->
-        <div id="cnPdfPreviewWrap" style="display:none;margin-top:16px;">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
-            <span style="font-size:13px;font-weight:600;color:#c0392b;">PDF Preview</span>
-            <button type="button" id="btnCnPreviewClose" class="btn small danger" style="padding:3px 8px;font-size:12px;">✕ Close</button>
-          </div>
-          <iframe id="cnPdfFrame" style="width:100%;height:500px;border:1.5px solid #e8b4b0;border-radius:8px;background:#f5f5f5;" src="about:blank"></iframe>
-        </div>
       </form>
 
-      <!-- Col 2: PDF Preview pane (wide screens only) -->
-      <div class="cn-preview-pane">
-        <div class="pane-title">
-          <span>PDF Preview</span>
-        </div>
-        <iframe id="cnPdfFrameSide" src="about:blank"></iframe>
-      </div>
-
-      <!-- Col 3: Saved list -->
+      <!-- Col 2: Saved list -->
       <div class="saved-side">
         <div class="card wide-card saved-toolbar">
           <label class="f filter-label">Supplier <select id="cnFilter" class="supplier-select"></select></label>
         </div>
         <div class="saved-list" id="cnList"></div>
+      </div>
+
+      <!-- Col 3: PDF Preview pane (right, wide screens only) -->
+      <div class="cn-preview-pane">
+        <div class="pane-title">
+          <span>PDF Preview</span>
+        </div>
+        <iframe id="cnPdfFrameSide" src="about:blank"></iframe>
       </div>
     </div>
   </section>
