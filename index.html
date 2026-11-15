@@ -395,6 +395,17 @@ label.f .up { text-transform: uppercase; }
 
 <div id="toast" role="status" aria-live="polite" hidden></div>
 
+<!-- Google Sign-in Prompt Modal -->
+<div id="gSignInModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;align-items:center;justify-content:center;">
+  <div style="background:#fff;border-radius:16px;padding:32px 28px;max-width:340px;width:90%;text-align:center;box-shadow:0 8px 40px rgba(0,0,0,.25);">
+    <div style="font-size:2.2rem;margin-bottom:12px;">☁️</div>
+    <h2 style="margin:0 0 10px;font-size:1.2rem;color:#1a1a1a;">Connect Google Drive</h2>
+    <p style="margin:0 0 22px;font-size:.9rem;color:#555;line-height:1.5;">Sign in with Google to sync your invoices across all devices and keep invoice numbers in sequence.</p>
+    <button type="button" id="btnGSignInModal" style="width:100%;padding:12px;background:#4285F4;color:#fff;border:none;border-radius:8px;font-size:1rem;font-weight:600;cursor:pointer;margin-bottom:10px;">Sign in with Google</button>
+    <button type="button" id="btnGSignInSkip" style="width:100%;padding:10px;background:transparent;color:#888;border:none;font-size:.85rem;cursor:pointer;">Skip for now (invoices saved locally)</button>
+  </div>
+</div>
+
 <script>
 /* Invoice engine: totals, amount in words, and one page layout that both the
    on-screen preview (SVG) and the PDF are drawn from. Units are millimetres on A4. */
@@ -1501,6 +1512,21 @@ if (typeof module !== 'undefined' && module.exports) module.exports = InvoiceEng
     }
   }
 
+  function showGSignInModal() {
+    var m = $('gSignInModal');
+    if (!m) return;
+    m.style.display = 'flex';
+    var btnSign = $('btnGSignInModal');
+    var btnSkip = $('btnGSignInSkip');
+    function closeModal() { m.style.display = 'none'; }
+    if (btnSign) btnSign.onclick = function () { closeModal(); gSignIn(); };
+    if (btnSkip) btnSkip.onclick = function () {
+      lsSet('lakshmi-g-skip', '1');
+      closeModal();
+    };
+    m.onclick = function (e) { if (e.target === m) closeModal(); };
+  }
+
   function initGoogle() {
     if (!(window.google && window.google.accounts && window.google.accounts.oauth2)) {
       setTimeout(initGoogle, 800); return;
@@ -1511,6 +1537,7 @@ if (typeof module !== 'undefined' && module.exports) module.exports = InvoiceEng
       callback: function (resp) {
         if (resp.error) { toast('Google sign-in failed: ' + resp.error); return; }
         gToken = resp.access_token;
+        lsDel('lakshmi-g-skip');
         lsSet('lakshmi-g-signin', '1');
         gUpdateUI();
         gDriveLoad();
@@ -1519,6 +1546,9 @@ if (typeof module !== 'undefined' && module.exports) module.exports = InvoiceEng
     gUpdateUI();
     if (lsGet('lakshmi-g-signin') === '1') {
       gTokenClient.requestAccessToken({ prompt: '' });
+    } else if (!lsGet('lakshmi-g-skip')) {
+      /* First open — show sign-in prompt after a short delay */
+      setTimeout(showGSignInModal, 1200);
     }
   }
   initGoogle();
