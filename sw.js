@@ -1,5 +1,5 @@
 /* Lakshmi Agency Billing – Service Worker */
-const CACHE = 'lakshmi-billing-v1';
+const CACHE = 'lakshmi-billing-v2';
 const ASSETS = [
   '/lakshmi-billing/',
   '/lakshmi-billing/index.html',
@@ -22,6 +22,7 @@ self.addEventListener('activate', e => {
 });
 
 self.addEventListener('fetch', e => {
+  // Network-first for same-origin HTML, cache-first for everything else
   const url = new URL(e.request.url);
   if (url.origin === self.location.origin && e.request.mode === 'navigate') {
     e.respondWith(
