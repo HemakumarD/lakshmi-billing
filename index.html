@@ -112,6 +112,7 @@ label.f .up { text-transform: uppercase; }
 .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
 .btn.small { padding: 6px 10px; font-size: 13px; }
 .btn.danger { color: var(--danger); }
+.btn.cn-btn { color: #c0392b; border-color: #e8b4b0; }
 .btn[disabled] { opacity: .5; cursor: not-allowed; }
 
 .sheet { background: #fff; border: 1px solid var(--line); border-radius: 4px; box-shadow: 0 6px 24px rgba(0,0,0,.10); overflow: hidden; }
@@ -1705,9 +1706,28 @@ if (typeof module !== 'undefined' && module.exports) module.exports = InvoiceEng
       var b = bizOf(agOf(inv)), c = E.compute(inv, b);
       var open = el('button', { type: 'button', class: 'btn small', text: 'Open' });
       var copy = el('button', { type: 'button', class: 'btn small', text: 'Copy to new' });
+      var cn = el('button', { type: 'button', class: 'btn small cn-btn', text: '+ Credit Note' });
       var del = el('button', { type: 'button', class: 'btn small danger', text: 'Delete' });
       open.addEventListener('click', function () { openInvoice(inv, false); });
       copy.addEventListener('click', function () { openInvoice(inv, true); });
+      cn.addEventListener('click', function () {
+        /* Pre-fill a new credit note from this invoice */
+        curCN = newCN(inv.agency || agOf(inv));
+        curCN.origInvNo = String(inv.no);
+        curCN.origInvDate = inv.date || '';
+        curCN.buyer = inv.buyer ? JSON.parse(JSON.stringify(inv.buyer)) : {};
+        curCN.items = (inv.items || [blankItem()]).map(function (it) {
+          return { desc: it.desc || '', hsn: it.hsn || '', qty: it.qty || '', rate: it.rate || '', gst: it.gst || '' };
+        });
+        if (!curCN.items.length) curCN.items = [blankItem()];
+        curCN.taxMode = inv.taxMode || 'auto';
+        curCN.roundOff = inv.roundOff !== false;
+        savedCNJson = '';
+        fillCNForm();
+        showView('cn');
+        window.scrollTo(0, 0);
+        toast('Credit note started for Invoice #' + inv.no + '.');
+      });
       del.addEventListener('click', function () {
         confirmClick(del, 'Delete for good?', function () {
           putDoc('inv-' + inv.id, { id: inv.id, deleted: true });
@@ -1721,7 +1741,7 @@ if (typeof module !== 'undefined' && module.exports) module.exports = InvoiceEng
           el('div', { class: 's', text: 'To ' + E.proper((inv.buyer && inv.buyer.name) || '') })
         ]),
         el('div', { class: 'amt', text: 'Rs. ' + E.f2(c.net) }),
-        el('div', { class: 'ops full' }, [open, copy, del])
+        el('div', { class: 'ops full' }, [open, copy, cn, del])
       ]));
     });
   }
