@@ -377,6 +377,7 @@ label.f .up { text-transform: uppercase; }
           <p class="hint" style="margin-top:0" id="gNote">Sign in with Google to automatically sync all invoices across all your devices and send invoices via Gmail with PDF attached.</p>
           <div class="ops" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px">
             <button type="button" class="btn small" id="btnGSignIn">Sign in with Google</button>
+            <button type="button" class="btn small" id="btnGReload" hidden>Reload from Drive</button>
             <button type="button" class="btn small danger" id="btnGSignOut" hidden>Sign out of Google</button>
           </div>
         </div>
@@ -1351,6 +1352,7 @@ if (typeof module !== 'undefined' && module.exports) module.exports = InvoiceEng
   function gUpdateUI() {
     var on = !!gToken;
     if ($('btnGSignIn')) $('btnGSignIn').hidden = on;
+    if ($('btnGReload')) $('btnGReload').hidden = !on;
     if ($('btnGSignOut')) $('btnGSignOut').hidden = !on;
     if (!on && $('gNote')) $('gNote').textContent = 'Sign in with Google to automatically sync all invoices across all your devices and send invoices via Gmail with PDF attached.';
   }
@@ -1388,20 +1390,30 @@ if (typeof module !== 'undefined' && module.exports) module.exports = InvoiceEng
       var fid = gDriveFileId || await gDriveFind();
       if (!fid) {
         gDriveFileId = null;
-        if ($('gNote')) $('gNote').textContent = '✓ Signed in. Invoices will sync to Google Drive when you save them.';
+        var localCount = Object.keys(docs).filter(function(k){ return k.indexOf('inv-')===0 && !docs[k].deleted; }).length;
+        if (localCount > 0) {
+          if ($('gNote')) $('gNote').textContent = '✓ Signed in. Uploading ' + localCount + ' local invoice(s) to Google Drive…';
+        } else {
+          if ($('gNote')) $('gNote').textContent = '✓ Signed in. No invoices found in Drive yet. To see invoices from another device, sign in with Google on that device first, then tap "Reload from Drive" here.';
+        }
         gScheduleSync(); return;
       }
       gDriveFileId = fid;
       var r = await gApi('GET', 'https://www.googleapis.com/drive/v3/files/' + fid + '?alt=media');
       if (!r || !r.ok) { if ($('gNote')) $('gNote').textContent = '✓ Signed in. Could not read Drive file.'; return; }
       var data = await r.json();
-      var changed = false;
+      var changed = false, localOnly = false;
       Object.keys(data).forEach(function (k) {
         var rem = data[k], loc = docs[k];
         if (!loc || (rem.updatedAt || 0) > (loc.updatedAt || 0)) {
           docs[k] = rem; lsSet(KEY + k, JSON.stringify(rem)); changed = true;
         }
       });
+      /* Push any local-only items back to Drive (bidirectional sync) */
+      Object.keys(docs).forEach(function (k) {
+        if (!data[k] && docs[k] && docs[k].updatedAt) localOnly = true;
+      });
+      if (localOnly) gScheduleSync();
       if ($('gNote')) $('gNote').textContent = '✓ Synced with Google Drive — ' + new Date().toLocaleTimeString();
       if (changed) { afterDocsChanged(); toast('Invoices updated from Google Drive.'); }
       else toast('Google Drive is up to date.');
@@ -2066,6 +2078,7 @@ if (typeof module !== 'undefined' && module.exports) module.exports = InvoiceEng
 
   // Google Drive + Gmail buttons
   $('btnGSignIn').addEventListener('click', gSignIn);
+  $('btnGReload').addEventListener('click', function () { gDriveLoad(); });
   $('btnGSignOut').addEventListener('click', gSignOut);
 
   // WhatsApp: share PDF via Web Share API (native share sheet with PDF) if available, else text link
