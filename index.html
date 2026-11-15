@@ -76,13 +76,13 @@ main { max-width: 1320px; margin: 0 auto; padding: 16px; }
 @media (min-width: 1000px) { .desk { grid-template-columns: minmax(360px, 470px) minmax(0, 1fr); align-items: start; } }
 /* CN 3-column: form | pdf preview | saved list (mirrors invoice layout) */
 .desk-cn { display: grid; gap: 20px; grid-template-columns: minmax(0, 1fr); }
-@media (min-width: 1200px) { .desk-cn { grid-template-columns: minmax(320px, 420px) minmax(0, 1fr) minmax(220px, 280px); align-items: start; } }
-@media (min-width: 1000px) and (max-width: 1199px) { .desk-cn { grid-template-columns: minmax(320px, 420px) minmax(0, 1fr); align-items: start; } }
+@media (min-width: 1000px) { .desk-cn { grid-template-columns: minmax(320px, 420px) minmax(0, 1fr); align-items: start; } }
+.cn-right-col { display: flex; flex-direction: column; gap: 20px; }
 .cn-preview-pane { position: sticky; top: 72px; }
 .cn-paper-scroll { max-height: calc(100vh - 160px); min-height: 400px; overflow-y: auto; border-radius: 8px; }
 .cn-preview-pane .sheet { width: 100%; }
 .cn-preview-pane .pane-title { font-size: 13px; font-weight: 600; color: #c0392b; margin-bottom: 6px; display: flex; align-items: center; justify-content: space-between; }
-@media (max-width: 999px) { .cn-preview-pane { display: none; } }
+@media (max-width: 999px) { .cn-preview-pane { display: none; } .cn-right-col { display: none; } }
 
 .head-row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 12px; margin: 0 0 12px; }
 h1 { font-family: var(--font-display); font-size: 26px; margin: 0; text-wrap: balance; }
@@ -378,16 +378,14 @@ label.f .up { text-transform: uppercase; }
 
       </form>
 
-      <!-- Col 2: Live Preview pane (wide screens only) -->
-      <div class="cn-preview-pane">
-        <div class="pane-title">
-          <span>Preview</span>
+      <!-- Col 2: Preview + Saved list stacked -->
+      <div class="cn-right-col">
+        <div class="cn-preview-pane">
+          <div class="pane-title">
+            <span>Preview</span>
+          </div>
+          <div class="cn-paper-scroll"><div class="sheet" id="cnPaper"></div></div>
         </div>
-        <div class="cn-paper-scroll"><div class="sheet" id="cnPaper"></div></div>
-      </div>
-
-      <!-- Col 3: Saved list -->
-      <div class="saved-side">
         <div class="card wide-card saved-toolbar">
           <label class="f filter-label">Supplier <select id="cnFilter" class="supplier-select"></select></label>
           <button type="button" class="btn export-btn" id="btnCnExportXlsx">⬇ Export to Excel</button>
