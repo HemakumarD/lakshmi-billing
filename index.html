@@ -371,9 +371,8 @@ label.f .up { text-transform: uppercase; }
         <div class="actions">
           <button type="button" class="btn primary" id="btnCnSave">Save Credit Note</button>
           <button type="button" class="btn" id="btnCnPdf">Download PDF</button>
-          <button type="button" class="btn" id="btnCnPreviewBtn">Preview PDF</button>
-          <button type="button" class="btn" id="btnCnWa">Share on WhatsApp</button>
-          <button type="button" class="btn" id="btnCnEmail">Send by Email</button>
+          <a class="btn" id="aCnWa" target="_blank" rel="noopener" href="https://wa.me/">WhatsApp</a>
+          <a class="btn" id="aCnMail" target="_blank" rel="noopener" href="mailto:">Email</a>
           <button type="button" class="btn small danger" id="btnCnNew">New Credit Note</button>
         </div>
 
@@ -2259,6 +2258,10 @@ if (typeof module !== 'undefined' && module.exports) module.exports = InvoiceEng
     readCNForm();
     scheduleCNPreview();
     var b = bizOf(curCN.agency), c = E.compute(curCN, b);
+    var cnMsg = 'Credit Note CN #' + (curCN.no || '') + ' from ' + E.proper(b.name) + '. Net amount: Rs.' + E.f2(c.net || 0) + '. Please find the PDF attached.';
+    var aCnWa = $('aCnWa'), aCnMail = $('aCnMail');
+    if (aCnWa) aCnWa.href = 'https://api.whatsapp.com/send?text=' + encodeURIComponent(cnMsg);
+    if (aCnMail) aCnMail.href = 'mailto:?subject=' + encodeURIComponent('Credit Note CN #' + (curCN.no || '') + ' - ' + E.proper(b.name)) + '&body=' + encodeURIComponent(cnMsg);
     var box = $('cnPreview');
     if (!box) return;
     var rows = c.lines.map(function (it) {
@@ -2323,20 +2326,6 @@ if (typeof module !== 'undefined' && module.exports) module.exports = InvoiceEng
     var pf = buildCNPdfBlob();
     triggerDownload(pf.filename, pf.blob);
     toast('Credit note PDF ready.');
-  }
-
-  function shareCNWhatsApp(e) {
-    if (!(window.jspdf && window.jspdf.jsPDF)) return;
-    if (!saveCN(true)) { e.preventDefault(); return; }
-    if (navigator.share) {
-      e.preventDefault();
-      var pf = buildCNPdfBlob();
-      var file = new File([pf.blob], pf.filename, { type: 'application/pdf' });
-      if (navigator.canShare && navigator.canShare({ files: [file] })) {
-        navigator.share({ files: [file], title: pf.filename }).catch(function () {});
-        return;
-      }
-    }
   }
 
   function renderCNList() {
@@ -2515,13 +2504,35 @@ if (typeof module !== 'undefined' && module.exports) module.exports = InvoiceEng
   $('btnCnNew').addEventListener('click', function () {
     curCN = newCN(); savedCNJson = ''; fillCNForm();
   });
-  $('btnCnWa').addEventListener('click', function (e) { shareCNWhatsApp(e); });
-  $('btnCnEmail').addEventListener('click', function () {
-    if (!saveCN(true)) return;
+  $('aCnWa').addEventListener('click', async function (e) {
+    if (!(window.jspdf && window.jspdf.jsPDF)) return;
+    if (!saveCN(true)) { e.preventDefault(); return; }
     var pf = buildCNPdfBlob();
-    var mailBody = 'Dear ' + E.proper((curCN.buyer || {}).name || 'Sir/Madam') + ',\n\nPlease find attached the credit note CN #' + curCN.no + '.\n\nRegards';
-    var mailto = 'mailto:?subject=' + encodeURIComponent('Credit Note CN #' + curCN.no) + '&body=' + encodeURIComponent(mailBody);
-    window.location.href = mailto;
+    if (navigator.share && navigator.canShare) {
+      var file = new File([pf.blob], pf.filename, { type: 'application/pdf' });
+      if (navigator.canShare({ files: [file] })) {
+        e.preventDefault();
+        try { await navigator.share({ files: [file] }); }
+        catch (err) { if (err.name !== 'AbortError') window.open($('aCnWa').href, '_blank'); }
+        return;
+      }
+    }
+    // fallback: href opens WhatsApp web with text message
+  });
+  $('aCnMail').addEventListener('click', async function (e) {
+    if (!(window.jspdf && window.jspdf.jsPDF)) return;
+    if (!saveCN(true)) { e.preventDefault(); return; }
+    var pf = buildCNPdfBlob();
+    if (navigator.share && navigator.canShare) {
+      var file = new File([pf.blob], pf.filename, { type: 'application/pdf' });
+      if (navigator.canShare({ files: [file] })) {
+        e.preventDefault();
+        try { await navigator.share({ files: [file] }); }
+        catch (err) { if (err.name !== 'AbortError') window.open($('aCnMail').href, '_blank'); }
+        return;
+      }
+    }
+    // fallback: href opens mailto
   });
   $('cn-agency').addEventListener('change', function () {
     readCNForm(); curCN.no = nextCNNo(curCN.agency); $('cn-no').value = curCN.no; refreshCNPreview();
