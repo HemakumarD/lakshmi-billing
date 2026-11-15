@@ -817,12 +817,12 @@ var InvoiceEngine = (function () {
     var overflow = bodyH > maxBody + 0.01;
     if (overflow) bodyH = maxBody;
     var yBody = yB + bodyH;
+    var COLS_ROW = isCN ? COLS_CN : COLS;
     rows.forEach(function (r, i) {
       if (r.y + (r.dl.length - 1) * LINE > yBody - 1.5) return;
       /* alternating row band */
       if (i % 2 === 0) rect(Lx, r.y - 7.5, Rx - Lx, r.dl.length * LINE + 1, isCN ? '#fff0f0' : '#f0f4ff');
       var it = r.it, yy = r.y;
-      var COLS_ROW = isCN ? COLS_CN : COLS;
       function right(s, col) { text(s, xs[col + 1] - 1.2, yy, SZ, true, 'right', COLS_ROW[col] - 1.8); }
       function mid(s, col) { text(s, (xs[col] + xs[col + 1]) / 2, yy, SZ, true, 'center', COLS_ROW[col] - 1); }
       mid(String(i + 1), 0);
@@ -2245,6 +2245,7 @@ if (typeof module !== 'undefined' && module.exports) module.exports = InvoiceEng
 
   function refreshCNPreview() {
     readCNForm();
+    scheduleCNPreview();
     var b = bizOf(curCN.agency), c = E.compute(curCN, b);
     var box = $('cnPreview');
     if (!box) return;
@@ -2479,12 +2480,11 @@ if (typeof module !== 'undefined' && module.exports) module.exports = InvoiceEng
   $('btnCnSave').addEventListener('click', function () { saveCN(false); });
   $('btnCnPdf').addEventListener('click', function () { downloadCNPdf(); });
 
-  var _cnPreviewUrl = null;
-  function showCNPdfPreview() {
-    if (!(window.jspdf && window.jspdf.jsPDF)) { toast('PDF maker not loaded. Reload the page.'); return; }
+  var _cnPreviewUrl = null, _cnPreviewTimer = null;
+  function showCNPdfPreview(scroll) {
+    if (!(window.jspdf && window.jspdf.jsPDF)) { return; }
     readCNForm();
     var b = bizOf(curCN.agency || 'lakshmi');
-    if (!window.jspdf) { toast('PDF library not ready.'); return; }
     var doc = newDoc('landscape');
     var L = E.layout(curCN, b, imagesOf(curCN.agency), E.pdfMeasure(doc));
     E.toPDF(doc, L);
@@ -2495,9 +2495,13 @@ if (typeof module !== 'undefined' && module.exports) module.exports = InvoiceEng
     frame.src = _cnPreviewUrl;
     var wrap = $('cnPdfPreviewWrap');
     wrap.style.display = 'block';
-    setTimeout(function () { wrap.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 100);
+    if (scroll) setTimeout(function () { wrap.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 100);
   }
-  $('btnCnPreviewBtn').addEventListener('click', showCNPdfPreview);
+  function scheduleCNPreview() {
+    if (_cnPreviewTimer) clearTimeout(_cnPreviewTimer);
+    _cnPreviewTimer = setTimeout(function () { showCNPdfPreview(false); }, 600);
+  }
+  $('btnCnPreviewBtn').addEventListener('click', function () { showCNPdfPreview(true); });
   $('btnCnPreviewClose').addEventListener('click', function () {
     $('cnPdfPreviewWrap').style.display = 'none';
     $('cnPdfFrame').src = 'about:blank';
@@ -2528,6 +2532,11 @@ if (typeof module !== 'undefined' && module.exports) module.exports = InvoiceEng
     }
     refreshCNPreview();
   });
+  ['cn-no','cn-date','cn-orig-date','cn-reason','cn-b-addr','cn-b-gstin','cn-b-pan'].forEach(function (id) {
+    var el = $(id); if (el) el.addEventListener('input', refreshCNPreview);
+  });
+  $('cn-t-mode').addEventListener('change', refreshCNPreview);
+  $('cn-t-ro').addEventListener('change', refreshCNPreview);
   $('cnFilter').addEventListener('change', function () { renderCNList(); });
 
   /* When "Against Invoice No" is filled, copy items + buyer from that invoice */
