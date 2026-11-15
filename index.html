@@ -79,7 +79,8 @@ main { max-width: 1320px; margin: 0 auto; padding: 16px; }
 @media (min-width: 1200px) { .desk-cn { grid-template-columns: minmax(320px, 420px) minmax(0, 1fr) minmax(220px, 280px); align-items: start; } }
 @media (min-width: 1000px) and (max-width: 1199px) { .desk-cn { grid-template-columns: minmax(320px, 420px) minmax(0, 1fr); align-items: start; } }
 .cn-preview-pane { position: sticky; top: 72px; }
-.cn-preview-pane iframe { width: 100%; height: calc(100vh - 160px); min-height: 400px; border: 1.5px solid #e8b4b0; border-radius: 8px; background: #f5f5f5; }
+.cn-paper-scroll { max-height: calc(100vh - 160px); min-height: 400px; overflow-y: auto; border-radius: 8px; }
+.cn-preview-pane .sheet { width: 100%; }
 .cn-preview-pane .pane-title { font-size: 13px; font-weight: 600; color: #c0392b; margin-bottom: 6px; display: flex; align-items: center; justify-content: space-between; }
 @media (max-width: 999px) { .cn-preview-pane { display: none; } }
 
@@ -378,12 +379,12 @@ label.f .up { text-transform: uppercase; }
 
       </form>
 
-      <!-- Col 2: PDF Preview pane (wide screens only) -->
+      <!-- Col 2: Live Preview pane (wide screens only) -->
       <div class="cn-preview-pane">
         <div class="pane-title">
-          <span>PDF Preview</span>
+          <span>Preview</span>
         </div>
-        <iframe id="cnPdfFrameSide" src="about:blank"></iframe>
+        <div class="cn-paper-scroll"><div class="sheet" id="cnPaper"></div></div>
       </div>
 
       <!-- Col 3: Saved list -->
@@ -2118,7 +2119,7 @@ if (typeof module !== 'undefined' && module.exports) module.exports = InvoiceEng
       var n = 0;
       Object.keys(data.docs).forEach(function (id) {
         var d = data.docs[id];
-        if (!d || typeof d !== 'object' || !/^(biz(-[a-z]+)?|img-(logo|seal|sign)(-[a-z]+)?|inv-[A-Za-z0-9]+|goods|ratelog|lock)$/.test(id)) return;
+        if (!d || typeof d !== 'object' || !/^(biz(-[a-z]+)?|img-(logo|seal|sign)(-[a-z]+)?|inv-[A-Za-z0-9]+|cn-[A-Za-z0-9]+-[A-Za-z0-9]+|goods|ratelog|lock)$/.test(id)) return;
         if (!docs[id] || (d.updatedAt || 0) > (docs[id].updatedAt || 0)) { docs[id] = d; lsSet(KEY + id, JSON.stringify(d)); pushRemote(id); n++; }
       });
       afterDocsChanged();
@@ -2498,41 +2499,18 @@ if (typeof module !== 'undefined' && module.exports) module.exports = InvoiceEng
   $('btnCnSave').addEventListener('click', function () { saveCN(false); });
   $('btnCnPdf').addEventListener('click', function () { downloadCNPdf(); });
 
-  var _cnPreviewUrl = null, _cnPreviewTimer = null;
-  function showCNPdfPreview(scroll) {
-    if (!(window.jspdf && window.jspdf.jsPDF)) { return; }
+  var _cnPreviewTimer = null;
+  function refreshCNRender() {
     readCNForm();
     var b = bizOf(curCN.agency || 'lakshmi');
-    var doc = newDoc('landscape');
-    var L = E.layout(curCN, b, imagesOf(curCN.agency), E.pdfMeasure(doc));
-    E.toPDF(doc, L);
-    var blob = doc.output('blob');
-    if (_cnPreviewUrl) URL.revokeObjectURL(_cnPreviewUrl);
-    _cnPreviewUrl = URL.createObjectURL(blob);
-    // Side pane iframe (wide screens)
-    var frameSide = $('cnPdfFrameSide');
-    if (frameSide) frameSide.src = _cnPreviewUrl;
-    // Fallback bottom iframe (narrow screens)
-    var frame = $('cnPdfFrame');
-    if (frame) {
-      frame.src = _cnPreviewUrl;
-      var wrap = $('cnPdfPreviewWrap');
-      if (wrap) {
-        wrap.style.display = 'block';
-        if (scroll) setTimeout(function () { wrap.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 100);
-      }
-    }
+    var L = E.layout(curCN, b, imagesOf(curCN.agency), getMeasure());
+    var paper = $('cnPaper');
+    if (paper) paper.innerHTML = E.toSVG(L);
   }
   function scheduleCNPreview() {
     if (_cnPreviewTimer) clearTimeout(_cnPreviewTimer);
-    _cnPreviewTimer = setTimeout(function () { showCNPdfPreview(false); }, 600);
+    _cnPreviewTimer = setTimeout(refreshCNRender, 140);
   }
-  $('btnCnPreviewBtn').addEventListener('click', function () { showCNPdfPreview(true); });
-  $('btnCnPreviewClose').addEventListener('click', function () {
-    $('cnPdfPreviewWrap').style.display = 'none';
-    $('cnPdfFrame').src = 'about:blank';
-    if (_cnPreviewUrl) { URL.revokeObjectURL(_cnPreviewUrl); _cnPreviewUrl = null; }
-  });
   $('btnCnNew').addEventListener('click', function () {
     curCN = newCN(); savedCNJson = ''; fillCNForm();
   });
