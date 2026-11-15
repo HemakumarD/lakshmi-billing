@@ -74,6 +74,14 @@ button, input, select, textarea { font: inherit; color: inherit; }
 main { max-width: 1320px; margin: 0 auto; padding: 16px; }
 .desk { display: grid; gap: 20px; grid-template-columns: minmax(0, 1fr); }
 @media (min-width: 1000px) { .desk { grid-template-columns: minmax(360px, 470px) minmax(0, 1fr); align-items: start; } }
+/* CN 3-column: form | pdf preview | saved list */
+.desk-cn { display: grid; gap: 20px; grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 1200px) { .desk-cn { grid-template-columns: minmax(320px, 420px) minmax(0, 1fr) minmax(220px, 300px); align-items: start; } }
+@media (min-width: 1000px) and (max-width: 1199px) { .desk-cn { grid-template-columns: minmax(320px, 420px) minmax(0, 1fr); align-items: start; } }
+.cn-preview-pane { position: sticky; top: 72px; }
+.cn-preview-pane iframe { width: 100%; height: calc(100vh - 160px); min-height: 400px; border: 1.5px solid #e8b4b0; border-radius: 8px; background: #f5f5f5; }
+.cn-preview-pane .pane-title { font-size: 13px; font-weight: 600; color: #c0392b; margin-bottom: 6px; display: flex; align-items: center; justify-content: space-between; }
+@media (max-width: 1199px) { .cn-preview-pane { display: none; } }
 
 .head-row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 12px; margin: 0 0 12px; }
 h1 { font-family: var(--font-display); font-size: 26px; margin: 0; text-wrap: balance; }
@@ -305,7 +313,8 @@ label.f .up { text-transform: uppercase; }
     </div>
     <div class="errors" id="cnErrors" hidden></div>
 
-    <div class="desk">
+    <div class="desk-cn">
+      <!-- Col 1: Form -->
       <form id="cnForm" class="stack" novalidate autocomplete="off">
         <div class="card">
           <h2>Supplier</h2>
@@ -366,15 +375,26 @@ label.f .up { text-transform: uppercase; }
           <button type="button" class="btn" id="btnCnEmail">Send by Email</button>
           <button type="button" class="btn small danger" id="btnCnNew">New Credit Note</button>
         </div>
+
+        <!-- Fallback preview for narrow screens (hidden on wide) -->
         <div id="cnPdfPreviewWrap" style="display:none;margin-top:16px;">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
             <span style="font-size:13px;font-weight:600;color:#c0392b;">PDF Preview</span>
             <button type="button" id="btnCnPreviewClose" class="btn small danger" style="padding:3px 8px;font-size:12px;">✕ Close</button>
           </div>
-          <iframe id="cnPdfFrame" style="width:100%;height:700px;border:1.5px solid #e8b4b0;border-radius:8px;background:#f5f5f5;" src="about:blank"></iframe>
+          <iframe id="cnPdfFrame" style="width:100%;height:500px;border:1.5px solid #e8b4b0;border-radius:8px;background:#f5f5f5;" src="about:blank"></iframe>
         </div>
       </form>
 
+      <!-- Col 2: PDF Preview pane (wide screens only) -->
+      <div class="cn-preview-pane">
+        <div class="pane-title">
+          <span>PDF Preview</span>
+        </div>
+        <iframe id="cnPdfFrameSide" src="about:blank"></iframe>
+      </div>
+
+      <!-- Col 3: Saved list -->
       <div class="saved-side">
         <div class="card wide-card saved-toolbar">
           <label class="f filter-label">Supplier <select id="cnFilter" class="supplier-select"></select></label>
@@ -917,19 +937,19 @@ var InvoiceEngine = (function () {
     }
 
     var yBlock = yT + bottomH;
-    /* Seal (left half) + Signature (right half) + "For Agency" label at bottom */
+    /* Seal + Signature overlapping (signature starts from seal's midpoint) */
     var authH = yBlock - ySum - 7;   /* available height above the "For" label */
     var sealSz = Math.min(authH, 26);
     var signW = Math.min((Rx - XS) * 0.52, 36), signH = Math.min(authH * 0.72, 22);
-    var midCol = (XS + Rx) / 2;
-    var sealX = XS + (midCol - XS) / 2 - sealSz / 2;
-    var signX = midCol + (Rx - midCol) / 2 - signW / 2;
+    /* Seal sits in left portion; signature starts at seal's horizontal centre */
+    var sealX = XS + 4;
     var imgY = ySum + (authH - sealSz) / 2 + 1;
+    var signX = sealX + sealSz / 2;   /* signature begins at seal midpoint → overlaps right half of seal */
     var hasItems = inv.items && inv.items.length > 0;
     var hasDate  = !!clean(inv.date);
     if (hasItems && hasDate) {
       image(images.seal, sealX, imgY, sealSz, sealSz, 'center', 'center');
-      image(images.sign, signX, imgY + (sealSz - signH) / 2, signW, signH, 'center', 'center');
+      image(images.sign, signX, imgY + (sealSz - signH) / 2, signW, signH, 'left', 'center');
     }
     text('For ' + nm, midCol, yBlock - 2.3, 9.5, true, 'center', Rx - XS - 4);
 
@@ -2491,11 +2511,19 @@ if (typeof module !== 'undefined' && module.exports) module.exports = InvoiceEng
     var blob = doc.output('blob');
     if (_cnPreviewUrl) URL.revokeObjectURL(_cnPreviewUrl);
     _cnPreviewUrl = URL.createObjectURL(blob);
+    // Side pane iframe (wide screens)
+    var frameSide = $('cnPdfFrameSide');
+    if (frameSide) frameSide.src = _cnPreviewUrl;
+    // Fallback bottom iframe (narrow screens)
     var frame = $('cnPdfFrame');
-    frame.src = _cnPreviewUrl;
-    var wrap = $('cnPdfPreviewWrap');
-    wrap.style.display = 'block';
-    if (scroll) setTimeout(function () { wrap.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 100);
+    if (frame) {
+      frame.src = _cnPreviewUrl;
+      var wrap = $('cnPdfPreviewWrap');
+      if (wrap) {
+        wrap.style.display = 'block';
+        if (scroll) setTimeout(function () { wrap.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 100);
+      }
+    }
   }
   function scheduleCNPreview() {
     if (_cnPreviewTimer) clearTimeout(_cnPreviewTimer);
