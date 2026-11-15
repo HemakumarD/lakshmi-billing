@@ -942,6 +942,7 @@ var InvoiceEngine = (function () {
     var sealSz = Math.min(authH, 26);
     var signW = Math.min((Rx - XS) * 0.52, 36), signH = Math.min(authH * 0.72, 22);
     /* Seal sits in left portion; signature starts at seal's horizontal centre */
+    var midCol = (XS + Rx) / 2;
     var sealX = XS + 4;
     var imgY = ySum + (authH - sealSz) / 2 + 1;
     var signX = sealX + sealSz / 2;   /* signature begins at seal midpoint → overlaps right half of seal */
@@ -1349,12 +1350,9 @@ if (typeof module !== 'undefined' && module.exports) module.exports = InvoiceEng
     box.textContent = '';
     var qtyLabel = bizOf(cur.agency).qtyLabel || 'MT', ps = products();
     cur.items.forEach(function (it, i) {
-      var pick = el('select', { id: 'it-pick-' + i, 'data-pick': String(i) }, [el('option', { value: '', text: 'Choose From The Goods List' })]
-        .concat(Object.keys(ps).map(function (k) { return el('option', { value: k, text: E.proper(ps[k].desc) }); })));
       var rm = el('button', { type: 'button', class: 'btn small danger', 'data-rm': String(i), 'aria-label': 'Remove item ' + (i + 1), text: 'Remove' });
       if (cur.items.length === 1) rm.hidden = true;
       box.appendChild(el('div', { class: 'item' }, [
-        el('label', { class: 'f' }, [document.createTextNode('Goods '), pick]),
         el('div', { class: 'item-top' }, [field('Description of goods', 'desc', i, it.desc, { list: 'productList' }), rm]),
         el('div', { class: 'item-nums' }, [
           field('HSN code', 'hsn', i, it.hsn, { inputmode: 'numeric' }),
@@ -2435,7 +2433,15 @@ if (typeof module !== 'undefined' && module.exports) module.exports = InvoiceEng
   });
   $('f-agency').addEventListener('change', agencyChanged);
   $('billForm').addEventListener('submit', function (e) { e.preventDefault(); });
-  $('billForm').addEventListener('input', function () { touched = true; refreshSoon(); });
+  $('billForm').addEventListener('input', function (e) {
+    var t = e.target;
+    /* Autofill HSN/rate/GST when desc matches a product exactly (handles datalist selection on all browsers) */
+    if (t.dataset && t.dataset.k === 'desc') {
+      var p = listed(t.value);
+      if (p) { applyProduct(t.closest('.item'), p, false); }
+    }
+    touched = true; refreshSoon();
+  });
   $('f-copy').addEventListener('change', refresh);
   $('billForm').addEventListener('change', function (e) {
     var t = e.target;
