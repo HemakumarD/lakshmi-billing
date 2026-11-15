@@ -2517,7 +2517,9 @@ if (typeof module !== 'undefined' && module.exports) module.exports = InvoiceEng
         return;
       }
     }
-    // fallback: href opens WhatsApp web with text message
+    // fallback: auto-download PDF, then open WhatsApp Web so user can attach it
+    triggerDownload(pf.filename, pf.blob);
+    toast('PDF downloaded — attach it in WhatsApp');
   });
   $('aCnMail').addEventListener('click', async function (e) {
     if (!(window.jspdf && window.jspdf.jsPDF)) return;
@@ -2532,7 +2534,9 @@ if (typeof module !== 'undefined' && module.exports) module.exports = InvoiceEng
         return;
       }
     }
-    // fallback: href opens mailto
+    // fallback: auto-download PDF, then open mailto so user can attach it
+    triggerDownload(pf.filename, pf.blob);
+    toast('PDF downloaded — attach it to your email');
   });
   $('cn-agency').addEventListener('change', function () {
     readCNForm(); curCN.no = nextCNNo(curCN.agency); $('cn-no').value = curCN.no; refreshCNPreview();
