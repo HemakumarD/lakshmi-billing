@@ -266,7 +266,7 @@ label.f .up { text-transform: uppercase; }
           </label>
         </div>
         <div class="sheet" id="paper"></div>
-        <p class="hint">To print, download the PDF and print it from your phone or computer. WhatsApp and Email open with the message already written. Choose the contact, attach the downloaded PDF, and send.</p>
+        <p class="hint">On mobile, WhatsApp and Email open the share sheet with the PDF already attached — just pick the contact and send. On desktop, download the PDF and attach it manually.</p>
         <p class="hint" id="sealHint"></p>
       </div>
     </div>
@@ -2068,10 +2068,39 @@ if (typeof module !== 'undefined' && module.exports) module.exports = InvoiceEng
   $('btnGSignIn').addEventListener('click', gSignIn);
   $('btnGSignOut').addEventListener('click', gSignOut);
 
-  // Intercept email button: use Gmail API when signed in, mailto: otherwise
-  $('aMail').addEventListener('click', function (e) {
-    if (gToken) { e.preventDefault(); gmailCompose(); }
-    // else default <a href="mailto:..."> opens the system email client
+  // WhatsApp: share PDF via Web Share API (native share sheet with PDF) if available, else text link
+  $('aWa').addEventListener('click', async function (e) {
+    if (!(window.jspdf && window.jspdf.jsPDF)) return; // PDF lib not loaded yet, let href open
+    if (!saveCurrent(true)) { e.preventDefault(); return; }
+    var pf = buildPdfBlob();
+    if (navigator.share && navigator.canShare) {
+      var file = new File([pf.blob], pf.filename, { type: 'application/pdf' });
+      if (navigator.canShare({ files: [file] })) {
+        e.preventDefault();
+        try { await navigator.share({ files: [file] }); }
+        catch (err) { if (err.name !== 'AbortError') window.open($('aWa').href, '_blank'); }
+        return;
+      }
+    }
+    // fallback: let the href open WhatsApp with text message
+  });
+
+  // Email: use Gmail API when signed in; Web Share API (native share with PDF) or mailto: otherwise
+  $('aMail').addEventListener('click', async function (e) {
+    if (gToken) { e.preventDefault(); gmailCompose(); return; }
+    if (!(window.jspdf && window.jspdf.jsPDF)) return; // PDF lib not loaded yet, let mailto open
+    if (!saveCurrent(true)) { e.preventDefault(); return; }
+    var pf = buildPdfBlob();
+    if (navigator.share && navigator.canShare) {
+      var file = new File([pf.blob], pf.filename, { type: 'application/pdf' });
+      if (navigator.canShare({ files: [file] })) {
+        e.preventDefault();
+        try { await navigator.share({ files: [file] }); }
+        catch (err) { if (err.name !== 'AbortError') window.open($('aMail').href, '_blank'); }
+        return;
+      }
+    }
+    // fallback: default <a href="mailto:..."> opens the system email client
   });
 
   // initSync() disabled — invoices saved to localStorage + Google Drive when signed in
