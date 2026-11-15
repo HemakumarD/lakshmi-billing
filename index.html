@@ -184,6 +184,7 @@ label.f .up { text-transform: uppercase; }
     <nav class="tabs" role="tablist" aria-label="Sections">
       <button class="tab" role="tab" id="tab-bill" data-view="bill" aria-selected="true">Invoice</button>
       <button class="tab" role="tab" id="tab-saved" data-view="saved" aria-selected="false">Saved invoices <span class="n" id="savedCount"></span></button>
+      <button class="tab" role="tab" id="tab-cn" data-view="cn" aria-selected="false">Credit Notes <span class="n" id="cnCount"></span></button>
       <button class="tab" role="tab" id="tab-biz" data-view="biz" aria-selected="false">Settings</button>
     </nav>
   </div>
@@ -292,6 +293,85 @@ label.f .up { text-transform: uppercase; }
     </div>
     <div class="saved-list" id="savedList"></div>
     <p class="hint" id="syncNote"></p>
+  </section>
+
+  <!-- ============ Credit Notes ============ -->
+  <section id="view-cn" hidden>
+    <div class="head-row">
+      <h1 id="cnTitle">New Credit Note</h1>
+      <span class="pill" id="cnState">New</span>
+    </div>
+    <div class="errors" id="cnErrors" hidden></div>
+
+    <div class="desk">
+      <form id="cnForm" class="stack" novalidate autocomplete="off">
+        <div class="card">
+          <h2>Supplier</h2>
+          <label class="f">Credit Note from <select id="cn-agency"></select></label>
+        </div>
+
+        <div class="card">
+          <h2>Credit Note Details</h2>
+          <div class="grid2">
+            <label class="f">Credit Note No <input id="cn-no" inputmode="numeric"></label>
+            <label class="f">Credit Note Date <input id="cn-date" type="date"></label>
+            <label class="f">Against Invoice No <input id="cn-orig-no" placeholder="e.g. 3045"></label>
+            <label class="f">Original Invoice Date <input id="cn-orig-date" type="date"></label>
+            <label class="f full">Reason for Credit Note <input id="cn-reason" placeholder="e.g. Goods returned, Rate correction"></label>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>Credit Note To</h2>
+          <div class="grid2">
+            <label class="f full">Customer name <input id="cn-b-name" list="cnCustomerList"></label>
+            <datalist id="cnCustomerList"></datalist>
+            <label class="f full">Address <textarea id="cn-b-addr" rows="3"></textarea></label>
+            <label class="f">GSTIN <input id="cn-b-gstin" class="up" placeholder="33AAACR5284JIZ9"></label>
+            <label class="f">PAN <input id="cn-b-pan" class="up"></label>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>Items</h2>
+          <div id="cn-items"></div>
+          <button type="button" class="btn small" id="cnAddItem">+ Add item</button>
+        </div>
+
+        <div class="card">
+          <h2>Tax</h2>
+          <div class="grid2">
+            <label class="f">Tax mode
+              <select id="cn-t-mode">
+                <option value="auto">Auto (5 % if GSTIN present, else 0 %)</option>
+                <option value="gst5">5 % GST (2.5+2.5 CGST/SGST)</option>
+                <option value="gst12">12 % GST (6+6 CGST/SGST)</option>
+                <option value="gst18">18 % GST (9+9 CGST/SGST)</option>
+                <option value="gst28">28 % GST (14+14 CGST/SGST)</option>
+                <option value="nil">Nil-rated / Exempt</option>
+              </select>
+            </label>
+            <label class="f">Round off <input type="checkbox" id="cn-t-ro" checked style="width:auto"></label>
+          </div>
+          <div id="cnPreview" class="preview-box"></div>
+        </div>
+
+        <div class="actions">
+          <button type="button" class="btn primary" id="btnCnSave">Save Credit Note</button>
+          <button type="button" class="btn" id="btnCnPdf">Download PDF</button>
+          <button type="button" class="btn" id="btnCnWa">Share on WhatsApp</button>
+          <button type="button" class="btn" id="btnCnEmail">Send by Email</button>
+          <button type="button" class="btn small danger" id="btnCnNew">New Credit Note</button>
+        </div>
+      </form>
+
+      <div class="saved-side">
+        <div class="card wide-card saved-toolbar">
+          <label class="f filter-label">Supplier <select id="cnFilter" class="supplier-select"></select></label>
+        </div>
+        <div class="saved-list" id="cnList"></div>
+      </div>
+    </div>
   </section>
 
   <!-- ============ Settings ============ -->
@@ -610,12 +690,13 @@ var InvoiceEngine = (function () {
     if (clean(biz.cell)) ph.push('Cell: ' + clean(biz.cell));
     text(ph.join(',   '), Rx - 1.5, Ty + 53, 9, true, 'right', 95);
 
+    var isCN = inv.docType === 'creditnote';
     var y = Ty + 55.5;
     /* Coloured section-header bands */
-    rect(Lx, y, DIV - Lx, 8.5, '#e8f0fe'); rect(DIV, y, Rx - DIV, 8.5, '#fce8e6');
+    rect(Lx, y, DIV - Lx, 8.5, isCN ? '#fce8e6' : '#e8f0fe'); rect(DIV, y, Rx - DIV, 8.5, '#fce8e6');
     line(Lx, y, Rx, y, 0.35);
-    text('Tax Invoice Details', (Lx + DIV) / 2, y + 6.1, 15, false, 'center', null, BLUE);
-    text('Tax Invoice To', (DIV + Rx) / 2, y + 6.1, 15, false, 'center', null, RED);
+    text(isCN ? 'GST Credit Note Details' : 'Tax Invoice Details', (Lx + DIV) / 2, y + 6.1, 15, false, 'center', null, isCN ? RED : BLUE);
+    text(isCN ? 'Credit Note To' : 'Tax Invoice To', (DIV + Rx) / 2, y + 6.1, 15, false, 'center', null, RED);
     var yHead = y;
     y += 8.5;
     line(Lx, y, Rx, y, 0.3);
@@ -628,9 +709,10 @@ var InvoiceEngine = (function () {
       text(': ' + clean(value), vx, ly, 9.5, true, 'left', leftW);
       ly += 4.25;
     }
-    field('Invoice No', inv.no, true);
-    field('Invoice Date', dateLong(inv.date), true);
-    field('DC No', inv.dcNo);
+    field(isCN ? 'Credit Note No' : 'Invoice No', inv.no, true);
+    field(isCN ? 'Credit Note Date' : 'Invoice Date', dateLong(inv.date), true);
+    if (isCN) { field('Against Invoice No', inv.origInvNo); field('Invoice Date', dateLong(inv.origInvDate)); field('Reason', inv.reason); }
+    if (!isCN) field('DC No', inv.dcNo);
     field('GSTIN', biz.gstin, true);
     field('PAN', biz.pan);
     var st = [proper(biz.stateName), stateCode(biz.gstin) || clean(biz.stateCode)].filter(Boolean).join(' : ');
@@ -767,7 +849,7 @@ var InvoiceEngine = (function () {
     /* copy strip and frame */
     var yBox = yBlock + stripH;
     line(Lx, yBlock, Rx, yBlock, 0.3);
-    text(proper(inv.copyLabel) || 'Original/Duplicate/Triplicate/Extra Copy', Rx - 2, yBlock + 3.3, 7.5, true, 'right');
+    text(proper(inv.copyLabel) || (isCN ? 'Original Credit Note' : 'Original/Duplicate/Triplicate/Extra Copy'), Rx - 2, yBlock + 3.3, 7.5, true, 'right');
     line(Lx, Ty, Rx, Ty, 0.4); line(Lx, yBox, Rx, yBox, 0.4);
     line(Lx, Ty, Lx, yBox, 0.4); line(Rx, Ty, Rx, yBox, 0.4);
     text(proper(biz.footer), MID, yBox + 8, 13, false, 'center', 190);
@@ -1166,6 +1248,8 @@ if (typeof module !== 'undefined' && module.exports) module.exports = InvoiceEng
     cl.textContent = ''; pl.textContent = '';
     Object.keys(cs).forEach(function (k) { cl.appendChild(el('option', { value: E.proper(cs[k].name) })); });
     Object.keys(ps).forEach(function (k) { pl.appendChild(el('option', { value: E.proper(ps[k].desc) })); });
+    var cnCl = $('cnCustomerList');
+    if (cnCl) { cnCl.textContent = ''; Object.keys(cs).forEach(function (k) { cnCl.appendChild(el('option', { value: E.proper(cs[k].name) })); }); }
   }
   function fillAgencySelects() {
     [['f-agency', ''], ['z-agency', ''], ['savedFilter', 'All Suppliers']].forEach(function (pair) {
@@ -1901,7 +1985,7 @@ if (typeof module !== 'undefined' && module.exports) module.exports = InvoiceEng
     fr.readAsText(file);
   }
   function afterDocsChanged() {
-    fillAgencySelects(); fillBiz(); fillLists(); renderSaved(); renderLog();
+    fillAgencySelects(); fillBiz(); fillLists(); renderSaved(); renderLog(); renderCNList(); fillCNAgencySelects();
     if (unlocked) { unlocked = false; editList = null; }
     renderGoods();
     if (!cur.id && !touched) { cur = newInvoice(cur.agency); savedJson = ''; fillForm(); }
@@ -1911,13 +1995,258 @@ if (typeof module !== 'undefined' && module.exports) module.exports = InvoiceEng
 
   /* ---------- views, toast, wiring ---------- */
   function showView(name) {
-    ['bill', 'saved', 'biz'].forEach(function (vw) {
+    ['bill', 'saved', 'cn', 'biz'].forEach(function (vw) {
       $('view-' + vw).hidden = vw !== name;
       $('tab-' + vw).setAttribute('aria-selected', vw === name ? 'true' : 'false');
     });
     if (name !== 'biz') saveBizNow();
     window.scrollTo(0, 0);
   }
+
+  /* ================================================================
+     CREDIT NOTES
+     Stored as  cn-{agency}-{id}  in docs
+  ================================================================ */
+  var CN_PREFIX = 'cn-';
+  var curCN = null, savedCNJson = '';
+
+  function creditNotes(ag) {
+    return Object.keys(docs).filter(function (k) {
+      return k.indexOf(CN_PREFIX) === 0 && !docs[k].deleted && (!ag || docs[k].agency === ag);
+    }).map(function (k) { return docs[k]; })
+      .sort(function (a, b) { return (b.updatedAt || 0) - (a.updatedAt || 0); });
+  }
+
+  function nextCNNo(ag) {
+    var max = 0;
+    Object.keys(docs).forEach(function (k) {
+      if (k.indexOf(CN_PREFIX) !== 0 || docs[k].agency !== ag || docs[k].deleted) return;
+      var n = parseInt(docs[k].no, 10);
+      if (n > max) max = n;
+    });
+    return String(max + 1);
+  }
+
+  function newCN(ag) {
+    ag = AGENCIES[ag] ? ag : (curCN ? curCN.agency : lsGet(AGKEY) || 'lakshmi');
+    return { id: '', agency: ag, docType: 'creditnote',
+      no: nextCNNo(ag), date: todayStr(),
+      origInvNo: '', origInvDate: '', reason: '',
+      buyer: lastBuyer(ag),
+      items: [blankItem()], taxMode: 'auto', roundOff: true };
+  }
+
+  function todayStr() {
+    var d = new Date(), mm = String(d.getMonth() + 1).padStart(2, '0'), dd = String(d.getDate()).padStart(2, '0');
+    return d.getFullYear() + '-' + mm + '-' + dd;
+  }
+
+  function readCNForm() {
+    curCN.agency = $('cn-agency').value;
+    curCN.no = $('cn-no').value.trim();
+    curCN.date = $('cn-date').value;
+    curCN.origInvNo = $('cn-orig-no').value.trim();
+    curCN.origInvDate = $('cn-orig-date').value;
+    curCN.reason = $('cn-reason').value.trim();
+    curCN.buyer = {
+      name: $('cn-b-name').value.trim(),
+      addr: $('cn-b-addr').value,
+      gstin: $('cn-b-gstin').value.trim().toUpperCase(),
+      pan: $('cn-b-pan').value.trim().toUpperCase()
+    };
+    curCN.items = Array.prototype.map.call(document.querySelectorAll('#cn-items .item'), function (row) {
+      var it = {};
+      ['desc', 'hsn', 'qty', 'rate', 'gst'].forEach(function (k) { it[k] = row.querySelector('[data-k="' + k + '"]').value.trim(); });
+      return it;
+    });
+    if (!curCN.items.length) curCN.items = [blankItem()];
+    curCN.taxMode = $('cn-t-mode').value;
+    curCN.roundOff = $('cn-t-ro').checked;
+  }
+
+  function fillCNForm() {
+    if (!curCN) return;
+    $('cn-agency').value = curCN.agency || 'lakshmi';
+    $('cn-no').value = curCN.no || '';
+    $('cn-date').value = curCN.date || '';
+    $('cn-orig-no').value = curCN.origInvNo || '';
+    $('cn-orig-date').value = curCN.origInvDate || '';
+    $('cn-reason').value = curCN.reason || '';
+    $('cn-b-name').value = E.proper(curCN.buyer ? curCN.buyer.name : '');
+    $('cn-b-addr').value = curCN.buyer ? curCN.buyer.addr || '' : '';
+    $('cn-b-gstin').value = curCN.buyer ? curCN.buyer.gstin || '' : '';
+    $('cn-b-pan').value = curCN.buyer ? curCN.buyer.pan || '' : '';
+    $('cn-t-mode').value = curCN.taxMode || 'auto';
+    $('cn-t-ro').checked = curCN.roundOff !== false;
+    renderCNItems();
+    refreshCNPreview();
+    updateCNState();
+  }
+
+  function renderCNItems() {
+    var wrap = $('cn-items'); wrap.innerHTML = '';
+    (curCN.items || [blankItem()]).forEach(function (it, i) {
+      var row = document.createElement('div'); row.className = 'item';
+      row.innerHTML = '<div class="item-grid">' +
+        '<label class="f i-desc">Description <input data-k="desc" value="' + esc(it.desc || '') + '" list="goodsList"></label>' +
+        '<label class="f i-hsn">HSN <input data-k="hsn" value="' + esc(it.hsn || '') + '" inputmode="numeric" maxlength="8"></label>' +
+        '<label class="f i-qty">Qty <input data-k="qty" value="' + esc(it.qty || '') + '" inputmode="decimal"></label>' +
+        '<label class="f i-rate">Rate <input data-k="rate" value="' + esc(it.rate || '') + '" inputmode="decimal"></label>' +
+        '<label class="f i-gst">GST% <input data-k="gst" value="' + esc(it.gst || '') + '" inputmode="decimal" placeholder="auto"></label>' +
+        '<button type="button" class="btn small danger rm-item" data-i="' + i + '">✕</button></div>';
+      wrap.appendChild(row);
+    });
+    wrap.querySelectorAll('.rm-item').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        readCNForm();
+        curCN.items.splice(parseInt(btn.dataset.i, 10), 1);
+        if (!curCN.items.length) curCN.items = [blankItem()];
+        renderCNItems(); refreshCNPreview();
+      });
+    });
+    wrap.querySelectorAll('input').forEach(function (inp) {
+      inp.addEventListener('input', refreshCNPreview);
+    });
+  }
+
+  function esc(s) { return String(s).replace(/"/g, '&quot;').replace(/</g, '&lt;'); }
+
+  function refreshCNPreview() {
+    readCNForm();
+    var b = bizOf(curCN.agency), c = E.compute(curCN, b);
+    var box = $('cnPreview');
+    if (!box) return;
+    var rows = c.lines.map(function (it) {
+      return '<tr><td>' + (E.proper(it.desc) || '—') + '</td><td style="text-align:right">' + fmt(it.taxable) + '</td>' +
+        '<td style="text-align:right">' + fmt(it.cgst || 0) + '</td><td style="text-align:right">' + fmt(it.sgst || 0) + '</td>' +
+        '<td style="text-align:right">' + fmt(it.total) + '</td></tr>';
+    }).join('');
+    box.innerHTML = '<table class="preview-tbl" style="width:100%;font-size:12px;border-collapse:collapse">' +
+      '<thead><tr><th style="text-align:left">Item</th><th style="text-align:right">Taxable</th>' +
+      '<th style="text-align:right">CGST</th><th style="text-align:right">SGST</th><th style="text-align:right">Total</th></tr></thead>' +
+      '<tbody>' + rows + '</tbody>' +
+      '<tfoot><tr><td><b>Total</b></td><td style="text-align:right"><b>' + fmt(c.taxable) + '</b></td>' +
+      '<td style="text-align:right"><b>' + fmt(c.cgst || 0) + '</b></td><td style="text-align:right"><b>' + fmt(c.sgst || 0) + '</b></td>' +
+      '<td style="text-align:right"><b>' + fmt(c.total) + '</b></td></tr></tfoot></table>';
+  }
+  function fmt(n) { return Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+
+  function updateCNState() {
+    var saved = curCN && curCN.id && docs[CN_PREFIX + curCN.agency + '-' + curCN.id] && !docs[CN_PREFIX + curCN.agency + '-' + curCN.id].deleted;
+    $('cnState').textContent = saved ? 'Saved' : 'New';
+    $('cnTitle').textContent = curCN && curCN.id ? 'Credit Note #' + curCN.no : 'New Credit Note';
+  }
+
+  function validateCN() {
+    var errs = [];
+    if (!curCN.no) errs.push('Credit Note number is required.');
+    if (!curCN.date) errs.push('Credit Note date is required.');
+    if (!curCN.buyer || !curCN.buyer.name) errs.push('Customer name is required.');
+    if (!curCN.items.length || !curCN.items[0].desc) errs.push('At least one item is required.');
+    var box = $('cnErrors');
+    box.innerHTML = errs.map(function (e) { return '<p>' + e + '</p>'; }).join('');
+    box.hidden = !errs.length;
+    return errs.length === 0;
+  }
+
+  function saveCN(silent) {
+    readCNForm();
+    if (!validateCN()) return false;
+    if (!curCN.id) curCN.id = curCN.no;
+    curCN.updatedAt = Date.now();
+    var key = CN_PREFIX + curCN.agency + '-' + curCN.id;
+    putDoc(key, clone(curCN));
+    savedCNJson = JSON.stringify(curCN);
+    renderCNList();
+    updateCNState();
+    if (!silent) toast('Credit note saved.');
+    return true;
+  }
+
+  function buildCNPdfBlob() {
+    var b = bizOf(curCN.agency), doc = newDoc();
+    var L = E.layout(curCN, b, imagesOf(curCN.agency), E.pdfMeasure(doc));
+    E.toPDF(doc, L);
+    doc.setProperties({ title: 'Credit Note ' + curCN.no, author: E.proper(b.name) });
+    var filename = 'CreditNote-' + slug(E.proper(b.name), 24) + '-CN' + slug(curCN.no, 10) + '-' + slug(curCN.buyer ? curCN.buyer.name : '', 30) + '.pdf';
+    return { blob: doc.output('blob'), filename: filename };
+  }
+
+  async function downloadCNPdf() {
+    if (!(window.jspdf && window.jspdf.jsPDF)) { toast('PDF maker not loaded. Try refreshing.'); return; }
+    if (!saveCN(true)) return;
+    var pf = buildCNPdfBlob();
+    triggerDownload(pf.filename, pf.blob);
+    toast('Credit note PDF ready.');
+  }
+
+  function shareCNWhatsApp(e) {
+    if (!(window.jspdf && window.jspdf.jsPDF)) return;
+    if (!saveCN(true)) { e.preventDefault(); return; }
+    if (navigator.share) {
+      e.preventDefault();
+      var pf = buildCNPdfBlob();
+      var file = new File([pf.blob], pf.filename, { type: 'application/pdf' });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        navigator.share({ files: [file], title: pf.filename }).catch(function () {});
+        return;
+      }
+    }
+  }
+
+  function renderCNList() {
+    var ag = $('cnFilter') ? $('cnFilter').value : 'all';
+    var list = creditNotes(ag === 'all' ? null : ag);
+    var wrap = $('cnList'); wrap.innerHTML = '';
+    if ($('cnCount')) $('cnCount').textContent = creditNotes().length || '';
+    if (!list.length) {
+      wrap.appendChild(Object.assign(document.createElement('p'), { className: 'hint', textContent: 'No credit notes saved yet.' }));
+      return;
+    }
+    list.forEach(function (cn) {
+      var div = document.createElement('div'); div.className = 'saved-item';
+      var ag2 = AGENCIES[cn.agency] || AGENCIES.lakshmi;
+      div.innerHTML = '<div class="si-top"><span class="si-no">CN #' + (cn.no || '—') + '</span>' +
+        '<span class="si-date">' + (cn.date || '') + '</span></div>' +
+        '<div class="si-buyer">' + E.proper((cn.buyer || {}).name || '') + '</div>' +
+        '<div class="si-ag">' + E.proper(ag2.name) + '</div>' +
+        (cn.origInvNo ? '<div class="si-ref">Against Invoice #' + cn.origInvNo + '</div>' : '') +
+        '<div class="si-actions"><button class="btn small" data-open>Open</button>' +
+        '<button class="btn small danger" data-del>Delete</button></div>';
+      div.querySelector('[data-open]').addEventListener('click', function () {
+        curCN = clone(cn); savedCNJson = JSON.stringify(curCN);
+        fillCNForm(); showView('cn');
+      });
+      div.querySelector('[data-del]').addEventListener('click', function () {
+        if (!confirm('Delete credit note CN #' + cn.no + '?')) return;
+        var key = CN_PREFIX + cn.agency + '-' + cn.id;
+        putDoc(key, { id: cn.id, agency: cn.agency, deleted: true });
+        if (curCN && curCN.id === cn.id && curCN.agency === cn.agency) { curCN = newCN(); fillCNForm(); }
+        renderCNList();
+      });
+      wrap.appendChild(div);
+    });
+  }
+
+  /* Populate agency selects for CN */
+  function fillCNAgencySelects() {
+    var selects = [$('cn-agency'), $('cnFilter')];
+    selects.forEach(function (sel) {
+      if (!sel) return;
+      sel.innerHTML = '';
+      if (sel.id === 'cnFilter') {
+        var opt = document.createElement('option'); opt.value = 'all'; opt.textContent = 'All suppliers'; sel.appendChild(opt);
+      }
+      Object.keys(AGENCIES).forEach(function (k) {
+        var opt = document.createElement('option'); opt.value = k; opt.textContent = E.proper(AGENCIES[k].name); sel.appendChild(opt);
+      });
+    });
+  }
+
+  fillCNAgencySelects();
+  curCN = newCN();
+  fillCNForm();
+  renderCNList();
   var toastTimer = null;
   function toast(msg) {
     var t = $('toast');
@@ -1982,6 +2311,39 @@ if (typeof module !== 'undefined' && module.exports) module.exports = InvoiceEng
   });
   $('savedFilter').addEventListener('change', function () { updateFilterColour(); renderSaved(); });
   updateFilterColour();
+
+  /* Credit Note event listeners */
+  $('cnAddItem').addEventListener('click', function () {
+    readCNForm(); curCN.items.push(blankItem()); renderCNItems(); refreshCNPreview();
+  });
+  $('btnCnSave').addEventListener('click', function () { saveCN(false); });
+  $('btnCnPdf').addEventListener('click', function () { downloadCNPdf(); });
+  $('btnCnNew').addEventListener('click', function () {
+    curCN = newCN(); savedCNJson = ''; fillCNForm();
+  });
+  $('btnCnWa').addEventListener('click', function (e) { shareCNWhatsApp(e); });
+  $('btnCnEmail').addEventListener('click', function () {
+    if (!saveCN(true)) return;
+    var pf = buildCNPdfBlob();
+    var mailBody = 'Dear ' + E.proper((curCN.buyer || {}).name || 'Sir/Madam') + ',\n\nPlease find attached the credit note CN #' + curCN.no + '.\n\nRegards';
+    var mailto = 'mailto:?subject=' + encodeURIComponent('Credit Note CN #' + curCN.no) + '&body=' + encodeURIComponent(mailBody);
+    window.location.href = mailto;
+  });
+  $('cn-agency').addEventListener('change', function () {
+    readCNForm(); curCN.no = nextCNNo(curCN.agency); $('cn-no').value = curCN.no; refreshCNPreview();
+  });
+  $('cn-b-name').addEventListener('input', function () {
+    var name = $('cn-b-name').value.trim();
+    if (!name) return;
+    var all = Object.values(docs).filter(function (d) { return d.buyer && E.proper(d.buyer.name).toLowerCase() === name.toLowerCase() && d.agency === curCN.agency; });
+    if (all.length && $('cn-b-addr') && !$('cn-b-addr').value) {
+      $('cn-b-addr').value = all[0].buyer.addr || '';
+      $('cn-b-gstin').value = all[0].buyer.gstin || '';
+      $('cn-b-pan').value = all[0].buyer.pan || '';
+    }
+    refreshCNPreview();
+  });
+  $('cnFilter').addEventListener('change', function () { renderCNList(); });
 
   async function exportXlsx() {
     if (!window.XLSX) { toast('Excel library not loaded yet. Please wait a moment and try again.'); return; }
