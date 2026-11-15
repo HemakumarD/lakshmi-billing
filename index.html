@@ -77,12 +77,11 @@ main { max-width: 1320px; margin: 0 auto; padding: 16px; }
 /* CN 3-column: form | pdf preview | saved list (mirrors invoice layout) */
 .desk-cn { display: grid; gap: 20px; grid-template-columns: minmax(0, 1fr); }
 @media (min-width: 1000px) { .desk-cn { grid-template-columns: minmax(320px, 420px) minmax(0, 1fr); align-items: start; } }
-.cn-right-col { display: flex; flex-direction: column; gap: 20px; }
 .cn-preview-pane { position: sticky; top: 72px; }
 .cn-paper-scroll { max-height: calc(100vh - 160px); min-height: 400px; overflow-y: auto; border-radius: 8px; }
 .cn-preview-pane .sheet { width: 100%; }
 .cn-preview-pane .pane-title { font-size: 13px; font-weight: 600; color: #c0392b; margin-bottom: 6px; display: flex; align-items: center; justify-content: space-between; }
-@media (max-width: 999px) { .cn-preview-pane { display: none; } .cn-right-col { display: none; } }
+@media (max-width: 999px) { .cn-preview-pane { display: none; } }
 
 .head-row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 12px; margin: 0 0 12px; }
 h1 { font-family: var(--font-display); font-size: 26px; margin: 0; text-wrap: balance; }
@@ -195,6 +194,7 @@ label.f .up { text-transform: uppercase; }
       <button class="tab" role="tab" id="tab-bill" data-view="bill" aria-selected="true">Invoice</button>
       <button class="tab" role="tab" id="tab-saved" data-view="saved" aria-selected="false">Saved invoices <span class="n" id="savedCount"></span></button>
       <button class="tab" role="tab" id="tab-cn" data-view="cn" aria-selected="false">Credit Notes <span class="n" id="cnCount"></span></button>
+      <button class="tab" role="tab" id="tab-saved-cn" data-view="saved-cn" aria-selected="false">Saved CNs <span class="n" id="savedCnCount"></span></button>
       <button class="tab" role="tab" id="tab-biz" data-view="biz" aria-selected="false">Settings</button>
     </nav>
   </div>
@@ -378,21 +378,24 @@ label.f .up { text-transform: uppercase; }
 
       </form>
 
-      <!-- Col 2: Preview + Saved list stacked -->
-      <div class="cn-right-col">
-        <div class="cn-preview-pane">
-          <div class="pane-title">
-            <span>Preview</span>
-          </div>
-          <div class="cn-paper-scroll"><div class="sheet" id="cnPaper"></div></div>
+      <!-- Col 2: Live Preview pane (wide screens only) -->
+      <div class="cn-preview-pane">
+        <div class="pane-title">
+          <span>Preview</span>
         </div>
-        <div class="card wide-card saved-toolbar">
-          <label class="f filter-label">Supplier <select id="cnFilter" class="supplier-select"></select></label>
-          <button type="button" class="btn export-btn" id="btnCnExportXlsx">⬇ Export to Excel</button>
-        </div>
-        <div class="saved-list" id="cnList"></div>
+        <div class="cn-paper-scroll"><div class="sheet" id="cnPaper"></div></div>
       </div>
     </div>
+  </section>
+
+  <!-- ============ Saved Credit Notes ============ -->
+  <section id="view-saved-cn" hidden>
+    <div class="head-row"><h1>Saved Credit Notes</h1></div>
+    <div class="card wide-card saved-toolbar">
+      <label class="f filter-label">Supplier <select id="cnFilter" class="supplier-select"></select></label>
+      <button type="button" class="btn export-btn" id="btnCnExportXlsx">⬇ Export to Excel</button>
+    </div>
+    <div class="saved-list" id="cnList"></div>
   </section>
 
   <!-- ============ Settings ============ -->
@@ -2136,11 +2139,13 @@ if (typeof module !== 'undefined' && module.exports) module.exports = InvoiceEng
 
   /* ---------- views, toast, wiring ---------- */
   function showView(name) {
-    ['bill', 'saved', 'cn', 'biz'].forEach(function (vw) {
+    ['bill', 'saved', 'cn', 'saved-cn', 'biz'].forEach(function (vw) {
       $('view-' + vw).hidden = vw !== name;
-      $('tab-' + vw).setAttribute('aria-selected', vw === name ? 'true' : 'false');
+      var tab = $('tab-' + vw);
+      if (tab) tab.setAttribute('aria-selected', vw === name ? 'true' : 'false');
     });
     if (name !== 'biz') saveBizNow();
+    if (name === 'saved-cn') refreshCNList();
     window.scrollTo(0, 0);
   }
 
@@ -2335,9 +2340,11 @@ if (typeof module !== 'undefined' && module.exports) module.exports = InvoiceEng
     }).map(function (k) { return { key: k, cn: docs[k] }; })
       .sort(function (a, b) { return (b.cn.updatedAt || 0) - (a.cn.updatedAt || 0); });
     var wrap = $('cnList'); wrap.innerHTML = '';
-    if ($('cnCount')) $('cnCount').textContent = Object.keys(docs).filter(function (k) {
+    var cnTotal = Object.keys(docs).filter(function (k) {
       return k.indexOf(CN_PREFIX) === 0 && !docs[k].deleted;
-    }).length || '';
+    }).length;
+    if ($('cnCount')) $('cnCount').textContent = cnTotal || '';
+    if ($('savedCnCount')) $('savedCnCount').textContent = cnTotal ? '(' + cnTotal + ')' : '';
     if (!entries.length) {
       wrap.appendChild(Object.assign(document.createElement('p'), { className: 'hint', textContent: 'No credit notes saved yet.' }));
       return;
