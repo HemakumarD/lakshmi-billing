@@ -4,6 +4,21 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Lakshmi Agency Billing</title>
+<meta name="theme-color" content="#1b6a39">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Billing">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  });
+}
+</script>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
@@ -356,6 +371,14 @@ label.f .up { text-transform: uppercase; }
         <div class="card">
           <h2>Rate change log</h2>
           <div id="rateLog"></div>
+        </div>
+        <div class="card">
+          <h2>Google Drive sync</h2>
+          <p class="hint" style="margin-top:0" id="gNote">Sign in with Google to automatically sync all invoices across all your devices and send invoices via Gmail with PDF attached.</p>
+          <div class="ops" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px">
+            <button type="button" class="btn small" id="btnGSignIn">Sign in with Google</button>
+            <button type="button" class="btn small danger" id="btnGSignOut" hidden>Sign out of Google</button>
+          </div>
         </div>
         <div class="card">
           <h2>Backup</h2>
@@ -848,7 +871,7 @@ if (typeof module !== 'undefined' && module.exports) module.exports = InvoiceEng
   var AGENCIES = {
     lakshmi: { name: 'Lakshmi Agency', tagline: '', addr1: '59/29,Arunachalam 2nd Street', addr2: 'Nandeeswaran Temple, Arakkonam-631001',
       addr3: 'Ranipet Dist, Tamil Nadu', email: 'senthil.ajj@gmail.com', phone: '04177-233374', cell: '9442200277',
-      gstin: '33JWBPS5979A1Z7', pan: 'JWBPS5979A', stateName: 'Tamil Nadu', qtyLabel: 'MT', startNo: '3016',
+      gstin: '33JWBPS5979A1Z7', pan: 'JWBPS5979A', stateName: 'Tamil Nadu', qtyLabel: 'MT', startNo: '3017',
       bankName: 'IndusInd Bank', bankAc: '652000011731', bankIfsc: 'INDB0001340', bankBranch: 'Arakkonam',
       footer: 'Suppliers Of : Fly Ash & Raw Materials And Transport' },
     garuda: { name: 'Garuda Agency', tagline: '', addr1: 'No.59/29,Arunachalam 2nd Street', addr2: 'Arakkonam-631001',
@@ -922,6 +945,7 @@ if (typeof module !== 'undefined' && module.exports) module.exports = InvoiceEng
     return ok || !!remote;
   }
   function pushRemote(id) {
+    gScheduleSync();
     if (!remote) return;
     chains[id] = (chains[id] || Promise.resolve()).then(function () {
       if (!remote || !docs[id]) return;
@@ -975,7 +999,7 @@ if (typeof module !== 'undefined' && module.exports) module.exports = InvoiceEng
   function agOf(inv) { return inv && AGENCIES[inv.agency] ? inv.agency : 'lakshmi'; }
   function bizOf(ag) {
     var d = AGENCIES[ag] || AGENCIES.lakshmi, saved = docs['biz-' + ag], b = {};
-    if (!saved && ag === 'lakshmi' && docs.biz) { saved = clone(docs.biz); if (saved.startNo === '3009') delete saved.startNo; }
+    if (!saved && ag === 'lakshmi' && docs.biz) { saved = clone(docs.biz); if (saved.startNo === '3009' || saved.startNo === '3016') delete saved.startNo; }
     saved = saved || {};
     var BANK_KEYS = ['bankName', 'bankAc', 'bankIfsc', 'bankBranch'];
     BIZ_KEYS.forEach(function (k) {
@@ -1283,35 +1307,221 @@ if (typeof module !== 'undefined' && module.exports) module.exports = InvoiceEng
   }
 
   /* ---------- PDF ---------- */
-  var dlCap;
-  function downloads() {
-    if (dlCap === undefined) {
-      dlCap = (window.claude && typeof window.claude.use === 'function') ? window.claude.use('downloads').catch(function () { return null; }) : Promise.resolve(null);
-    }
-    return dlCap;
-  }
-  async function saveFile(filename, data, okMsg) {
-    var cap = await downloads();
-    if (!cap) { toast('Files cannot be downloaded in this view. Open this page from claude.ai and try again.'); return; }
-    try { await cap.save({ filename: filename, data: data }); toast(okMsg); }
-    catch (e) {
-      var code = e && e.code;
-      toast(code === 'declined' ? 'Download cancelled.' : code === 'rate_limited' ? 'A download prompt is already open. Answer it, then try again.'
-        : 'The file could not be saved here. Open this page from claude.ai and try again.');
-    }
-  }
   function slug(s, n) { return String(s || '').replace(/[^A-Za-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, n); }
-  async function downloadPdf() {
-    if (!(window.jspdf && window.jspdf.jsPDF)) { toast('The PDF maker did not load. Check the internet connection and reload the page.'); return; }
-    if (!saveCurrent(true)) return;
+  function triggerDownload(filename, blob) {
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click();
+    setTimeout(function () { document.body.removeChild(a); URL.revokeObjectURL(url); }, 1000);
+  }
+  function buildPdfBlob() {
     var b = bizOf(cur.agency), doc = newDoc();
     var L = E.layout(cur, b, imagesOf(cur.agency), E.pdfMeasure(doc));
     E.toPDF(doc, L);
     doc.setProperties({ title: 'Invoice ' + cur.no, author: E.proper(b.name) });
     var mark = cur.copyLabel ? '-' + slug(cur.copyLabel, 20) : '';
-    await saveFile('Invoice-' + slug(E.proper(b.name), 24) + '-' + slug(cur.no, 20) + '-' + slug(cur.buyer.name, 40) + mark + '.pdf', doc.output('blob'),
-      'PDF ready. Print it, or attach it in WhatsApp or email.');
+    var filename = 'Invoice-' + slug(E.proper(b.name), 24) + '-' + slug(cur.no, 20) + '-' + slug(cur.buyer.name, 40) + mark + '.pdf';
+    return { blob: doc.output('blob'), filename: filename };
   }
+  async function downloadPdf() {
+    if (!(window.jspdf && window.jspdf.jsPDF)) { toast('The PDF maker did not load. Check the internet connection and reload the page.'); return; }
+    if (!saveCurrent(true)) return;
+    var pf = buildPdfBlob();
+    triggerDownload(pf.filename, pf.blob);
+    toast('PDF ready. Print it, or attach it in WhatsApp or email.');
+  }
+
+  /* ---------- Google Drive + Gmail ---------- */
+  var G_CLIENT_ID = '183776959919-hpm7gqgrcdn82o49qvhn94l2meiaq2ea.apps.googleusercontent.com';
+  var G_SCOPES = 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/gmail.compose';
+  var gToken = null, gTokenClient = null, gDriveFileId = null, gSyncTimer = null;
+
+  function gUpdateUI() {
+    var on = !!gToken;
+    if ($('btnGSignIn')) $('btnGSignIn').hidden = on;
+    if ($('btnGSignOut')) $('btnGSignOut').hidden = !on;
+    if (!on && $('gNote')) $('gNote').textContent = 'Sign in with Google to automatically sync all invoices across all your devices and send invoices via Gmail with PDF attached.';
+  }
+  function gSignIn() {
+    if (!gTokenClient) { toast('Google services are loading, please try again in a moment.'); return; }
+    gTokenClient.requestAccessToken({ prompt: gToken ? '' : 'consent' });
+  }
+  function gSignOut() {
+    if (gToken && window.google && window.google.accounts) google.accounts.oauth2.revoke(gToken);
+    gToken = null; gDriveFileId = null;
+    lsDel('lakshmi-g-signin');
+    gUpdateUI();
+    toast('Signed out of Google.');
+  }
+  async function gApi(method, url, body, ctype) {
+    if (!gToken) return null;
+    var r = await fetch(url, {
+      method: method,
+      headers: Object.assign({ Authorization: 'Bearer ' + gToken }, ctype ? { 'Content-Type': ctype } : {}),
+      body: body || undefined
+    });
+    if (r.status === 401) { gToken = null; lsDel('lakshmi-g-signin'); gUpdateUI(); toast('Google session expired. Please sign in again.'); return null; }
+    return r;
+  }
+  async function gDriveFind() {
+    var r = await gApi('GET', 'https://www.googleapis.com/drive/v3/files?q=name%3D%27lakshmi-billing-data.json%27+and+trashed%3Dfalse&fields=files(id)&spaces=drive');
+    if (!r || !r.ok) return null;
+    var d = await r.json();
+    return d.files && d.files[0] ? d.files[0].id : null;
+  }
+  async function gDriveLoad() {
+    if (!gToken) return;
+    if ($('gNote')) $('gNote').textContent = 'Loading invoices from Google Drive…';
+    try {
+      var fid = gDriveFileId || await gDriveFind();
+      if (!fid) {
+        gDriveFileId = null;
+        if ($('gNote')) $('gNote').textContent = '✓ Signed in. Invoices will sync to Google Drive when you save them.';
+        gScheduleSync(); return;
+      }
+      gDriveFileId = fid;
+      var r = await gApi('GET', 'https://www.googleapis.com/drive/v3/files/' + fid + '?alt=media');
+      if (!r || !r.ok) { if ($('gNote')) $('gNote').textContent = '✓ Signed in. Could not read Drive file.'; return; }
+      var data = await r.json();
+      var changed = false;
+      Object.keys(data).forEach(function (k) {
+        var rem = data[k], loc = docs[k];
+        if (!loc || (rem.updatedAt || 0) > (loc.updatedAt || 0)) {
+          docs[k] = rem; lsSet(KEY + k, JSON.stringify(rem)); changed = true;
+        }
+      });
+      if ($('gNote')) $('gNote').textContent = '✓ Synced with Google Drive — ' + new Date().toLocaleTimeString();
+      if (changed) { afterDocsChanged(); toast('Invoices updated from Google Drive.'); }
+      else toast('Google Drive is up to date.');
+    } catch (e) {
+      console.error('gDriveLoad:', e);
+      if ($('gNote')) $('gNote').textContent = '✓ Signed in. Drive load error — will retry on next save.';
+    }
+  }
+  function gScheduleSync() {
+    if (!gToken) return;
+    clearTimeout(gSyncTimer);
+    gSyncTimer = setTimeout(gDriveSave, 2500);
+  }
+  async function gDriveSave() {
+    if (!gToken) return;
+    var allDocs = {};
+    Object.keys(docs).forEach(function (k) { allDocs[k] = docs[k]; });
+    var body = JSON.stringify(allDocs);
+    var bd = 'lk_bnd_' + Date.now();
+    var meta = JSON.stringify({ name: 'lakshmi-billing-data.json', mimeType: 'application/json' });
+    var mp = '--' + bd + '\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n' + meta +
+      '\r\n--' + bd + '\r\nContent-Type: application/json\r\n\r\n' + body + '\r\n--' + bd + '--';
+    try {
+      if (!gDriveFileId) gDriveFileId = await gDriveFind();
+      var r;
+      if (gDriveFileId) {
+        r = await fetch('https://www.googleapis.com/upload/drive/v3/files/' + gDriveFileId + '?uploadType=multipart', {
+          method: 'PATCH',
+          headers: { Authorization: 'Bearer ' + gToken, 'Content-Type': 'multipart/related; boundary=' + bd },
+          body: mp
+        });
+      } else {
+        r = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+          method: 'POST',
+          headers: { Authorization: 'Bearer ' + gToken, 'Content-Type': 'multipart/related; boundary=' + bd },
+          body: mp
+        });
+        if (r && r.ok) { var fd = await r.json(); gDriveFileId = fd.id; }
+      }
+      if (r && r.ok) {
+        if ($('gNote')) $('gNote').textContent = '✓ Synced to Google Drive — ' + new Date().toLocaleTimeString();
+      } else if (r && r.status === 401) { gToken = null; lsDel('lakshmi-g-signin'); gUpdateUI(); }
+    } catch (e) { console.error('gDriveSave:', e); }
+  }
+
+  async function gmailCompose() {
+    if (!saveCurrent(true)) return;
+    if (!(window.jspdf && window.jspdf.jsPDF)) { toast('PDF maker not loaded. Try refreshing the page.'); return; }
+    toast('Creating Gmail draft with PDF…');
+    var pf = buildPdfBlob();
+    var b64pdf = await new Promise(function (res) {
+      var fr = new FileReader();
+      fr.onload = function (e) { res(e.target.result.split(',')[1]); };
+      fr.readAsDataURL(pf.blob);
+    });
+    var c = lastLayout ? lastLayout.totals : {};
+    var b = bizOf(cur.agency);
+    var msg = 'Dear Sir/Madam,\n\nPlease find attached our invoice.\n\nInvoice No: ' + cur.no +
+      '\nInvoice Date: ' + E.dateLong(cur.date) + '\nNet Amount: Rs. ' + E.f2(c.net) +
+      '\n\nThank you,\n' + E.proper(b.name) + (b.cell ? '\nCell: ' + b.cell : '');
+    var subj = 'Invoice ' + cur.no + ' - ' + E.proper(b.name);
+    var to = (cur.buyer && cur.buyer.email) || '';
+    var bd2 = 'lk_mail_' + Date.now();
+    var encSubj;
+    try { encSubj = '=?UTF-8?B?' + btoa(unescape(encodeURIComponent(subj))) + '?='; } catch (e) { encSubj = subj; }
+    var emailRaw = [
+      'MIME-Version: 1.0',
+      to ? 'To: ' + to : '',
+      'Subject: ' + encSubj,
+      'Content-Type: multipart/mixed; boundary="' + bd2 + '"',
+      '',
+      '--' + bd2,
+      'Content-Type: text/plain; charset=UTF-8',
+      '',
+      msg,
+      '',
+      '--' + bd2,
+      'Content-Type: application/pdf',
+      'Content-Transfer-Encoding: base64',
+      'Content-Disposition: attachment; filename="' + pf.filename + '"',
+      '',
+      b64pdf,
+      '--' + bd2 + '--'
+    ].filter(function (l) { return l !== null; }).join('\r\n');
+    var raw;
+    try { raw = btoa(unescape(encodeURIComponent(emailRaw))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); }
+    catch (e) { toast('Could not encode email. Try the Email link.'); return; }
+    try {
+      var r = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/drafts', {
+        method: 'POST',
+        headers: { Authorization: 'Bearer ' + gToken, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: { raw: raw } })
+      });
+      if (r && r.ok) {
+        window.open('https://mail.google.com/mail/#drafts', '_blank');
+        toast('Gmail draft created with PDF. Open Gmail Drafts to review and send.');
+      } else if (r && r.status === 401) {
+        gToken = null; lsDel('lakshmi-g-signin'); gUpdateUI();
+        toast('Google session expired. Please sign in again.');
+      } else {
+        toast('Could not create Gmail draft. Using email link instead.');
+        window.open($('aMail').href, '_blank');
+      }
+    } catch (e) {
+      console.error('gmailCompose:', e);
+      toast('Gmail error. Using email link instead.');
+      window.open($('aMail').href, '_blank');
+    }
+  }
+
+  function initGoogle() {
+    if (!(window.google && window.google.accounts && window.google.accounts.oauth2)) {
+      setTimeout(initGoogle, 800); return;
+    }
+    gTokenClient = google.accounts.oauth2.initTokenClient({
+      client_id: G_CLIENT_ID,
+      scope: G_SCOPES,
+      callback: function (resp) {
+        if (resp.error) { toast('Google sign-in failed: ' + resp.error); return; }
+        gToken = resp.access_token;
+        lsSet('lakshmi-g-signin', '1');
+        gUpdateUI();
+        gDriveLoad();
+      }
+    });
+    gUpdateUI();
+    if (lsGet('lakshmi-g-signin') === '1') {
+      gTokenClient.requestAccessToken({ prompt: '' });
+    }
+  }
+  initGoogle();
 
   /* ---------- saved list ---------- */
   function confirmClick(btn, question, fn) {
@@ -1824,7 +2034,17 @@ if (typeof module !== 'undefined' && module.exports) module.exports = InvoiceEng
   $('btnBackup').addEventListener('click', backup);
   $('up-backup').addEventListener('change', restore);
 
-  // initSync() disabled — avoids Claude sign-in prompt for agency users; invoices saved to localStorage
+  // Google Drive + Gmail buttons
+  $('btnGSignIn').addEventListener('click', gSignIn);
+  $('btnGSignOut').addEventListener('click', gSignOut);
+
+  // Intercept email button: use Gmail API when signed in, mailto: otherwise
+  $('aMail').addEventListener('click', function (e) {
+    if (gToken) { e.preventDefault(); gmailCompose(); }
+    // else default <a href="mailto:..."> opens the system email client
+  });
+
+  // initSync() disabled — invoices saved to localStorage + Google Drive when signed in
   // initSync();
 })();
 
