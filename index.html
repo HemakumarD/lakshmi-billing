@@ -391,6 +391,7 @@ label.f .up { text-transform: uppercase; }
       <div class="saved-side">
         <div class="card wide-card saved-toolbar">
           <label class="f filter-label">Supplier <select id="cnFilter" class="supplier-select"></select></label>
+          <button type="button" class="btn export-btn" id="btnCnExportXlsx">⬇ Export to Excel</button>
         </div>
         <div class="saved-list" id="cnList"></div>
       </div>
@@ -2663,6 +2664,81 @@ if (typeof module !== 'undefined' && module.exports) module.exports = InvoiceEng
   }
 
   $('btnExportXlsx').addEventListener('click', exportXlsx);
+
+  function exportCNXlsx() {
+    if (!window.XLSX) { toast('Excel library not loaded yet. Please wait a moment and try again.'); return; }
+    var filter = $('cnFilter').value;
+    var list = (filter ? creditNotes(filter) : creditNotes()).sort(function (a, b) {
+      var da = a.date || '', db = b.date || '';
+      return da < db ? -1 : da > db ? 1 : (a.no || '').localeCompare(b.no || '');
+    });
+    if (!list.length) { toast('No credit notes to export.'); return; }
+
+    var rows = [];
+    list.forEach(function (cn) {
+      var b = bizOf(cn.agency || 'lakshmi'), c = E.compute(cn, b);
+      var base = {
+        Supplier: E.proper(b.name),
+        'CN No': cn.no || '',
+        Date: cn.date || '',
+        'Orig Invoice No': cn.origInvNo || '',
+        'Orig Invoice Date': cn.origInvDate || '',
+        Reason: cn.reason || '',
+        'Buyer Name': E.proper((cn.buyer && cn.buyer.name) || ''),
+        'Buyer Address': ((cn.buyer && cn.buyer.addr) || '').replace(/\n/g, ', '),
+        'Buyer GSTIN': (cn.buyer && cn.buyer.gstin) || ''
+      };
+      (cn.items || []).forEach(function (it, idx) {
+        if (!it || !it.desc) return;
+        var row = Object.assign({}, base);
+        row['Item #'] = idx + 1;
+        row['Description'] = E.proper(it.desc || '');
+        row['HSN'] = it.hsn || '';
+        row['Qty'] = parseFloat(it.qty) || 0;
+        row['Rate'] = parseFloat(it.rate) || 0;
+        row['Taxable Value'] = parseFloat(it.qty) * parseFloat(it.rate) || 0;
+        row['GST %'] = it.gst || '';
+        var itc = c.items && c.items[idx];
+        row['GST Amount'] = itc ? (itc.tax || 0) : 0;
+        row['Item Total'] = itc ? (itc.total || 0) : 0;
+        row['Taxable Total'] = '';
+        row['Total Tax'] = '';
+        row['Net Amount'] = '';
+        rows.push(row);
+      });
+      // summary row
+      var sum = Object.assign({}, base);
+      sum['Item #'] = ''; sum['Description'] = ''; sum['HSN'] = ''; sum['Qty'] = ''; sum['Rate'] = '';
+      sum['Taxable Value'] = c.taxable || 0;
+      sum['GST %'] = ''; sum['GST Amount'] = c.tax || 0; sum['Item Total'] = '';
+      sum['Taxable Total'] = c.taxable || 0;
+      sum['Total Tax'] = c.tax || 0;
+      sum['Net Amount'] = c.net || 0;
+      rows.push(sum);
+      rows.push({});
+    });
+
+    var ws = XLSX.utils.json_to_sheet(rows);
+    var cols = [18,14,12,16,16,22,24,32,18,8,28,10,8,10,12,10,12,12,12,12];
+    ws['!cols'] = cols.map(function (w) { return { wch: w }; });
+    var wb = XLSX.utils.book_new();
+    var sheetName = filter ? (E.proper(filter) + ' Credit Notes') : 'All Credit Notes';
+    XLSX.utils.book_append_sheet(wb, ws, sheetName);
+    var wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+    var blob = new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    var label = filter ? slug(filter, 20) : 'all';
+    a.href = url;
+    a.download = 'credit-notes-' + label + '-' + today() + '.xlsx';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function () { document.body.removeChild(a); URL.revokeObjectURL(url); }, 1000);
+    toast('Excel statement downloaded.');
+  }
+
+  $('btnCnExportXlsx').addEventListener('click', exportCNXlsx);
+
   $('z-agency').addEventListener('change', function () {
     saveBizNow();
     settingsAg = AGENCIES[v('z-agency')] ? v('z-agency') : 'lakshmi';
