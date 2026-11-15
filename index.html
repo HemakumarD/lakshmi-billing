@@ -664,15 +664,25 @@ var InvoiceEngine = (function () {
 
     /* Google-inspired colour accents */
     var BLUE = '#1a73e8', RED = '#ea4335', YELLOW = '#fbbc04', GREEN = '#34a853';
+    var CN_RED = '#c0392b', CN_LIGHT = '#fce8e6', CN_MID = '#e74c3c';
 
     /* letterhead — draw logo first so colour stripe renders on top */
     var logoX = images.agency === 'lakshmi' ? Lx - 8 : Lx - 2;
     image(images.logo, logoX, Ty - 3, 55, 54, 'center', 'center');
 
-    /* Top accent bar — 4-colour Google stripe */
+    /* Top accent bar — 4-colour for invoice, solid red for credit note */
     var barW = (Rx - Lx) / 4;
-    rect(Lx, Ty - 2, barW, 2.2, BLUE); rect(Lx + barW, Ty - 2, barW, 2.2, RED);
-    rect(Lx + barW * 2, Ty - 2, barW, 2.2, YELLOW); rect(Lx + barW * 3, Ty - 2, barW, 2.2, GREEN);
+    if (isCN) {
+      rect(Lx, Ty - 2, Rx - Lx, 2.8, CN_RED);
+    } else {
+      rect(Lx, Ty - 2, barW, 2.2, BLUE); rect(Lx + barW, Ty - 2, barW, 2.2, RED);
+      rect(Lx + barW * 2, Ty - 2, barW, 2.2, YELLOW); rect(Lx + barW * 3, Ty - 2, barW, 2.2, GREEN);
+    }
+
+    /* Credit Note diagonal watermark stamp */
+    if (isCN) {
+      P.unshift({ t: 'stamp', text: 'CREDIT NOTE', x: MID, y: 148.5, size: 36, color: '#ea4335', opacity: 0.08 });
+    }
     var nm = proper(biz.name) || 'Business Name';
     var nameSize = 44, nw = measure(nm, nameSize, true);
     if (nw > 130) nameSize = nameSize * 130 / nw;
@@ -743,8 +753,8 @@ var InvoiceEngine = (function () {
 
     /* goods table header */
     var yS = yH + 6.3, yB = yH + 13.5;
-    /* Blue header band for goods table */
-    rect(Lx, yH, Rx - Lx, yB - yH, BLUE);
+    /* Blue (invoice) or Red (credit note) header band for goods table */
+    rect(Lx, yH, Rx - Lx, yB - yH, isCN ? CN_RED : BLUE);
     var heads = ['S.No', 'HSN Code', 'Description Of Goods', 'Rate', clean(biz.qtyLabel) || 'MT', 'Amount'];
     heads.forEach(function (hd, i) { text(hd, (xs[i] + xs[i + 1]) / 2, yB - 3.3, 9.5, true, 'center', COLS[i] - 1.5, '#ffffff'); });
     [['CGST', 6], ['SGST', 8], ['IGST', 10]].forEach(function (g) {
@@ -773,7 +783,7 @@ var InvoiceEngine = (function () {
     rows.forEach(function (r, i) {
       if (r.y + (r.dl.length - 1) * LINE > yBody - 1.5) return;
       /* alternating row band */
-      if (i % 2 === 0) rect(Lx, r.y - 7.5, Rx - Lx, r.dl.length * LINE + 1, '#f0f4ff');
+      if (i % 2 === 0) rect(Lx, r.y - 7.5, Rx - Lx, r.dl.length * LINE + 1, isCN ? '#fff0f0' : '#f0f4ff');
       var it = r.it, yy = r.y;
       function right(s, col) { text(s, xs[col + 1] - 1.2, yy, SZ, true, 'right', COLS[col] - 1.8); }
       function mid(s, col) { text(s, (xs[col] + xs[col + 1]) / 2, yy, SZ, true, 'center', COLS[col] - 1); }
@@ -788,12 +798,12 @@ var InvoiceEngine = (function () {
       mid(f2(it.ip), 10); right(f2(it.ia), 11);
     });
 
-    /* total row — green accent */
+    /* total row — green accent (invoice) or red accent (credit note) */
     var yT = yBody + totalH;
-    rect(Lx, yBody, Rx - Lx, totalH, '#e6f4ea');
+    rect(Lx, yBody, Rx - Lx, totalH, isCN ? CN_LIGHT : '#e6f4ea');
     line(Lx, yBody, Rx, yBody, 0.3);
     line(Lx, yT, Rx, yT, 0.3);
-    text('Total', xs[4] + 1.5, yT - 1.6, 9.5, true, null, null, GREEN);
+    text('Total', xs[4] + 1.5, yT - 1.6, 9.5, true, null, null, isCN ? CN_RED : GREEN);
     function tot(v, col) { text(f2(v), xs[col + 1] - 1.2, yT - 1.6, 9.5, true, 'right', COLS[col] - 1.8); }
     tot(c.amount, 5); tot(c.cgst, 7); tot(c.sgst, 9); tot(c.igst, 11);
     for (var i = 1; i < xs.length - 1; i++) {
@@ -821,10 +831,10 @@ var InvoiceEngine = (function () {
       sy += 4.3;
     });
     var yNetTop = sy - 4.3 + 1.5, yNet = yNetTop + 4.3, ySum = yNet + 1.7;
-    rect(XS, yNetTop, Rx - XS, yNet - yNetTop, '#e6f4ea');
+    rect(XS, yNetTop, Rx - XS, yNet - yNetTop, isCN ? CN_LIGHT : '#e6f4ea');
     line(XS, yNetTop, Rx, yNetTop, 0.3);
-    text('Net Amount', XS + 5, yNet, 10, true, null, null, GREEN);
-    text(f2(c.net), Rx - 1.5, yNet, 10, true, 'right', Rx - XV - 2.5, GREEN);
+    text('Net Amount', XS + 5, yNet, 10, true, null, null, isCN ? CN_RED : GREEN);
+    text(f2(c.net), Rx - 1.5, yNet, 10, true, 'right', Rx - XV - 2.5, isCN ? CN_RED : GREEN);
     line(XS, ySum, Rx, ySum, 0.3);
     line(XS, yT, XS, ySum, 0.3);
     line(XV, yT, XV, ySum, 0.3);
@@ -849,13 +859,24 @@ var InvoiceEngine = (function () {
     /* copy strip and frame */
     var yBox = yBlock + stripH;
     line(Lx, yBlock, Rx, yBlock, 0.3);
-    text(proper(inv.copyLabel) || (isCN ? 'Original Credit Note' : 'Original/Duplicate/Triplicate/Extra Copy'), Rx - 2, yBlock + 3.3, 7.5, true, 'right');
-    line(Lx, Ty, Rx, Ty, 0.4); line(Lx, yBox, Rx, yBox, 0.4);
-    line(Lx, Ty, Lx, yBox, 0.4); line(Rx, Ty, Rx, yBox, 0.4);
+    if (isCN) {
+      /* Red copy strip background for CN */
+      rect(Lx, yBlock, Rx - Lx, stripH, CN_LIGHT);
+      text(proper(inv.copyLabel) || 'Original Credit Note', Rx - 2, yBlock + 3.3, 7.5, true, 'right', null, CN_RED);
+      text('GST Credit Note', Lx + 2, yBlock + 3.3, 7.5, true, 'left', null, CN_RED);
+    } else {
+      text(proper(inv.copyLabel) || 'Original/Duplicate/Triplicate/Extra Copy', Rx - 2, yBlock + 3.3, 7.5, true, 'right');
+    }
+    line(Lx, Ty, Rx, Ty, isCN ? 0.6 : 0.4); line(Lx, yBox, Rx, yBox, isCN ? 0.6 : 0.4);
+    line(Lx, Ty, Lx, yBox, isCN ? 0.6 : 0.4); line(Rx, Ty, Rx, yBox, isCN ? 0.6 : 0.4);
     text(proper(biz.footer), MID, yBox + 8, 13, false, 'center', 190);
-    /* Bottom accent bar — matching top 4-colour stripe */
-    rect(Lx, yBox + 13, barW, 2, BLUE); rect(Lx + barW, yBox + 13, barW, 2, RED);
-    rect(Lx + barW * 2, yBox + 13, barW, 2, YELLOW); rect(Lx + barW * 3, yBox + 13, barW, 2, GREEN);
+    /* Bottom accent bar — solid red for CN, 4-colour for invoice */
+    if (isCN) {
+      rect(Lx, yBox + 13, Rx - Lx, 2, CN_RED);
+    } else {
+      rect(Lx, yBox + 13, barW, 2, BLUE); rect(Lx + barW, yBox + 13, barW, 2, RED);
+      rect(Lx + barW * 2, yBox + 13, barW, 2, YELLOW); rect(Lx + barW * 3, yBox + 13, barW, 2, GREEN);
+    }
 
     return { prims: P, totals: c, overflow: overflow, pageW: 210, pageH: 297 };
   }
@@ -923,6 +944,19 @@ var InvoiceEngine = (function () {
           doc.addImage(p.data, fmt, p.x, p.y, p.w, p.h, undefined, 'FAST');
           doc.restoreGraphicsState();
         } catch (e) { /* graceful skip if GState unsupported */ }
+      } else if (p.t === 'stamp') {
+        /* Diagonal text watermark stamp — e.g. "CREDIT NOTE" */
+        try {
+          doc.saveGraphicsState();
+          doc.setGState(new doc.GState({ opacity: p.opacity || 0.08 }));
+          var sc = hexToRgb(p.color || '#ea4335');
+          doc.setTextColor(sc[0], sc[1], sc[2]);
+          doc.setFont(FONT, 'bold');
+          doc.setFontSize(p.size || 36);
+          doc.text(p.text, p.x, p.y, { align: 'center', angle: 45 });
+          doc.restoreGraphicsState();
+          doc.setTextColor(0, 0, 0);
+        } catch (e) { /* graceful skip */ }
       }
     });
     return doc;
@@ -2344,6 +2378,47 @@ if (typeof module !== 'undefined' && module.exports) module.exports = InvoiceEng
     refreshCNPreview();
   });
   $('cnFilter').addEventListener('change', function () { renderCNList(); });
+
+  /* When "Against Invoice No" is filled, copy items + buyer from that invoice */
+  $('cn-orig-no').addEventListener('change', function () {
+    var origNo = $('cn-orig-no').value.trim();
+    if (!origNo) return;
+    var ag = $('cn-agency').value || curCN.agency;
+    /* Search saved invoices for matching invoice number within the same agency */
+    var match = null;
+    Object.keys(docs).forEach(function (k) {
+      var d = docs[k];
+      if (d.deleted || d.docType === 'creditnote') return;
+      if (d.agency === ag && String(d.no).trim() === origNo) match = d;
+    });
+    if (!match) {
+      /* Also try across all agencies if not found in current agency */
+      Object.keys(docs).forEach(function (k) {
+        var d = docs[k];
+        if (!match && !d.deleted && d.docType !== 'creditnote' && String(d.no).trim() === origNo) match = d;
+      });
+    }
+    if (!match) return;
+    /* Fill original invoice date */
+    if (match.date && !$('cn-orig-date').value) $('cn-orig-date').value = match.date;
+    /* Copy buyer details if not already filled */
+    if (match.buyer) {
+      if (!$('cn-b-name').value) $('cn-b-name').value = E.proper(match.buyer.name || '');
+      if (!$('cn-b-addr').value) $('cn-b-addr').value = match.buyer.addr || '';
+      if (!$('cn-b-gstin').value) $('cn-b-gstin').value = match.buyer.gstin || '';
+      if (!$('cn-b-pan').value) $('cn-b-pan').value = match.buyer.pan || '';
+    }
+    /* Copy items (desc + HSN + qty + rate + gst) */
+    curCN.items = (match.items || [blankItem()]).map(function (it) {
+      return { desc: it.desc || '', hsn: it.hsn || '', qty: it.qty || '', rate: it.rate || '', gst: it.gst || '' };
+    });
+    if (!curCN.items.length) curCN.items = [blankItem()];
+    /* Copy tax mode */
+    if (match.taxMode) { curCN.taxMode = match.taxMode; $('cn-t-mode').value = match.taxMode; }
+    renderCNItems();
+    refreshCNPreview();
+    toast('Items copied from Invoice #' + origNo + '.');
+  });
 
   async function exportXlsx() {
     if (!window.XLSX) { toast('Excel library not loaded yet. Please wait a moment and try again.'); return; }
