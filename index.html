@@ -19,6 +19,7 @@ if ('serviceWorker' in navigator) {
 }
 </script>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
@@ -526,12 +527,82 @@ label.f .cust-wrap input {
             <label class="btn small">Restore from backup file<input type="file" accept=".json,application/json" id="up-backup" hidden></label>
           </div>
         </div>
+        <!-- Security / PIN settings -->
+        <div class="card">
+          <h3 class="card-title">🔒 Security</h3>
+          <div class="stack" style="gap:10px;">
+            <p style="font-size:.85rem;color:#666;margin:0;">App is protected by a PIN. Use the button below to change your PIN at any time.</p>
+            <button type="button" class="btn small" id="btnChangePIN">Change PIN</button>
+            <hr style="border:none;border-top:1px solid #eee;margin:4px 0;">
+            <p style="font-size:.82rem;color:#888;margin:0;"><b>EmailJS keys</b> (needed for Forgot PIN email)</p>
+            <label class="f"><span>Service ID</span><input id="ejs-service" type="text" placeholder="service_xxxxxxx" autocomplete="off"></label>
+            <label class="f"><span>Template ID</span><input id="ejs-template" type="text" placeholder="template_xxxxxxx" autocomplete="off"></label>
+            <label class="f"><span>Public Key</span><input id="ejs-pubkey" type="text" placeholder="xxxxxxxxxxxxxxxxxxx" autocomplete="off"></label>
+            <button type="button" class="btn small" id="btnSaveEJS">Save EmailJS Keys</button>
+            <p style="font-size:.78rem;color:#aaa;margin:0;">Get these free at <a href="https://www.emailjs.com" target="_blank" rel="noopener">emailjs.com</a> → Email Services + Email Templates.</p>
+          </div>
+        </div>
+        <div class="card" style="display:none" id="_dummy_bk_card">
+          </div>
+        </div>
       </div>
     </div>
   </section>
 </main>
 
 <div id="toast" role="status" aria-live="polite" hidden></div>
+
+<!-- ===== PIN Lock Screen ===== -->
+<div id="lockScreen" style="display:none;position:fixed;inset:0;background:linear-gradient(135deg,#1a1a2e 0%,#16213e 50%,#0f3460 100%);z-index:99999;align-items:center;justify-content:center;flex-direction:column;">
+  <div style="text-align:center;color:#fff;width:100%;max-width:360px;padding:32px 24px;">
+    <div style="font-size:3rem;margin-bottom:8px;">🔒</div>
+    <h2 id="lockTitle" style="margin:0 0 6px;font-size:1.4rem;font-weight:700;letter-spacing:.5px;">Lakshmi Agency</h2>
+    <p id="lockSub" style="margin:0 0 32px;font-size:.9rem;color:#a0aec0;">Enter your PIN to continue</p>
+
+    <!-- PIN dots -->
+    <div id="pinDots" style="display:flex;justify-content:center;gap:14px;margin-bottom:28px;">
+      <span class="pd"></span><span class="pd"></span><span class="pd"></span><span class="pd"></span><span class="pd"></span><span class="pd"></span>
+    </div>
+    <style>
+      .pd{width:14px;height:14px;border-radius:50%;background:rgba(255,255,255,.25);transition:background .15s;}
+      .pd.filled{background:#fff;}
+      #lockErr{color:#fc8181;font-size:.85rem;min-height:1.2em;margin-bottom:12px;}
+      #pinGrid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;max-width:260px;margin:0 auto 20px;}
+      .pk{background:rgba(255,255,255,.12);border:none;border-radius:12px;color:#fff;font-size:1.4rem;font-weight:600;padding:18px;cursor:pointer;transition:background .15s;}
+      .pk:active,.pk:hover{background:rgba(255,255,255,.25);}
+      #lockForgot{background:transparent;border:none;color:#90cdf4;font-size:.85rem;cursor:pointer;text-decoration:underline;margin-top:4px;}
+    </style>
+    <div id="lockErr"></div>
+    <div id="pinGrid">
+      <button class="pk" data-d="1">1</button><button class="pk" data-d="2">2</button><button class="pk" data-d="3">3</button>
+      <button class="pk" data-d="4">4</button><button class="pk" data-d="5">5</button><button class="pk" data-d="6">6</button>
+      <button class="pk" data-d="7">7</button><button class="pk" data-d="8">8</button><button class="pk" data-d="9">9</button>
+      <button class="pk" data-d="del" style="font-size:1rem;">⌫</button>
+      <button class="pk" data-d="0">0</button>
+      <button class="pk" data-d="ok" style="font-size:.95rem;">OK</button>
+    </div>
+    <button id="lockForgot" style="display:none;">Forgot PIN?</button>
+
+    <!-- OTP reset panel (hidden initially) -->
+    <div id="otpPanel" style="display:none;margin-top:16px;">
+      <p style="color:#a0aec0;font-size:.85rem;margin:0 0 12px;">A reset code has been sent to<br><b style="color:#fff;">d.hemakumarr@gmail.com</b></p>
+      <input id="otpInp" type="number" inputmode="numeric" placeholder="Enter reset code" maxlength="6"
+        style="width:100%;padding:12px;border-radius:10px;border:none;font-size:1.1rem;text-align:center;letter-spacing:4px;box-sizing:border-box;margin-bottom:10px;">
+      <button id="otpVerify" class="pk" style="width:100%;border-radius:10px;padding:14px;font-size:1rem;">Verify Code</button>
+      <button id="otpBack" style="background:transparent;border:none;color:#90cdf4;font-size:.82rem;cursor:pointer;margin-top:8px;text-decoration:underline;">← Back to PIN</button>
+    </div>
+
+    <!-- New PIN setup panel -->
+    <div id="newPinPanel" style="display:none;margin-top:16px;">
+      <p style="color:#a0aec0;font-size:.85rem;margin:0 0 10px;">Set a new PIN (4–6 digits)</p>
+      <input id="newPinInp" type="password" inputmode="numeric" maxlength="6" placeholder="New PIN"
+        style="width:100%;padding:12px;border-radius:10px;border:none;font-size:1.3rem;text-align:center;letter-spacing:6px;margin-bottom:8px;box-sizing:border-box;">
+      <input id="newPinConf" type="password" inputmode="numeric" maxlength="6" placeholder="Confirm PIN"
+        style="width:100%;padding:12px;border-radius:10px;border:none;font-size:1.3rem;text-align:center;letter-spacing:6px;margin-bottom:12px;box-sizing:border-box;">
+      <button id="newPinSave" class="pk" style="width:100%;border-radius:10px;padding:14px;font-size:1rem;">Save PIN</button>
+    </div>
+  </div>
+</div>
 
 <!-- Google Sign-in Prompt Modal -->
 <div id="gSignInModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;align-items:center;justify-content:center;">
@@ -2483,6 +2554,208 @@ if (typeof module !== 'undefined' && module.exports) module.exports = InvoiceEng
     clearTimeout(toastTimer);
     toastTimer = setTimeout(function () { t.hidden = true; }, 4500);
   }
+
+  /* =====================================================================
+     PIN LOCK MODULE
+     ===================================================================== */
+  (function () {
+    var PIN_KEY = 'lb-pin-hash';
+    var EJS_KEY = 'lb-ejs';
+    var OTP_KEY = 'lb-otp';
+    var pinBuf = '';
+    var lockEl = document.getElementById('lockScreen');
+    var mode = 'unlock'; // 'unlock' | 'setup' | 'otp' | 'newpin'
+
+    /* Simple hash (djb2) — not cryptographic but sufficient for a local PIN */
+    function hashPin(p) {
+      var h = 5381;
+      for (var i = 0; i < p.length; i++) h = (h * 33) ^ p.charCodeAt(i);
+      return (h >>> 0).toString(36);
+    }
+
+    function getEJS() {
+      try { return JSON.parse(localStorage.getItem(EJS_KEY) || 'null') || {}; } catch (e) { return {}; }
+    }
+
+    function showLock(m) {
+      mode = m || 'unlock';
+      lockEl.style.display = 'flex';
+      document.getElementById('otpPanel').style.display = 'none';
+      document.getElementById('newPinPanel').style.display = 'none';
+      document.getElementById('pinGrid').style.display = 'grid';
+      document.getElementById('pinDots').style.display = 'flex';
+      document.getElementById('lockForgot').style.display = 'none';
+      document.getElementById('lockErr').textContent = '';
+      pinBuf = '';
+      updateDots();
+      if (m === 'setup') {
+        document.getElementById('lockTitle').textContent = 'Set Up Your PIN';
+        document.getElementById('lockSub').textContent = 'Choose a 4–6 digit PIN to protect this app';
+        document.getElementById('pinGrid').style.display = 'none';
+        document.getElementById('pinDots').style.display = 'none';
+        document.getElementById('newPinPanel').style.display = 'block';
+        document.getElementById('newPinInp').value = '';
+        document.getElementById('newPinConf').value = '';
+        setTimeout(function () { document.getElementById('newPinInp').focus(); }, 100);
+      } else {
+        document.getElementById('lockTitle').textContent = 'Lakshmi Agency';
+        document.getElementById('lockSub').textContent = 'Enter your PIN to continue';
+        document.getElementById('lockForgot').style.display = '';
+      }
+    }
+
+    function hideLock() {
+      lockEl.style.display = 'none';
+    }
+
+    function updateDots() {
+      var dots = document.querySelectorAll('#pinDots .pd');
+      dots.forEach(function (d, i) { d.classList.toggle('filled', i < pinBuf.length); });
+    }
+
+    function tryUnlock() {
+      var stored = localStorage.getItem(PIN_KEY);
+      if (hashPin(pinBuf) === stored) {
+        hideLock();
+      } else {
+        document.getElementById('lockErr').textContent = 'Wrong PIN. Try again.';
+        pinBuf = '';
+        updateDots();
+        setTimeout(function () { document.getElementById('lockErr').textContent = ''; }, 1500);
+      }
+    }
+
+    /* ---- keypad ---- */
+    document.getElementById('pinGrid').addEventListener('click', function (e) {
+      var btn = e.target.closest('[data-d]');
+      if (!btn) return;
+      var d = btn.dataset.d;
+      if (d === 'del') { pinBuf = pinBuf.slice(0, -1); updateDots(); return; }
+      if (d === 'ok') { if (pinBuf.length >= 4) tryUnlock(); return; }
+      if (pinBuf.length < 6) { pinBuf += d; updateDots(); }
+      if (pinBuf.length === 6) tryUnlock(); // auto-submit at 6 digits
+    });
+
+    /* ---- forgot PIN ---- */
+    document.getElementById('lockForgot').addEventListener('click', function () {
+      var ejs = getEJS();
+      if (!ejs.service || !ejs.template || !ejs.pubkey) {
+        document.getElementById('lockErr').textContent = 'EmailJS not configured. Contact the app admin.';
+        return;
+      }
+      var code = Math.floor(100000 + Math.random() * 900000).toString();
+      var exp = Date.now() + 15 * 60 * 1000;
+      localStorage.setItem(OTP_KEY, JSON.stringify({ code: code, exp: exp }));
+      document.getElementById('lockErr').textContent = 'Sending…';
+      emailjs.init(ejs.pubkey);
+      emailjs.send(ejs.service, ejs.template, {
+        to_email: 'd.hemakumarr@gmail.com',
+        reset_code: code,
+        app_name: 'Lakshmi Agency Billing'
+      }).then(function () {
+        document.getElementById('lockErr').textContent = '';
+        document.getElementById('pinGrid').style.display = 'none';
+        document.getElementById('pinDots').style.display = 'none';
+        document.getElementById('lockForgot').style.display = 'none';
+        document.getElementById('lockSub').textContent = 'Check d.hemakumarr@gmail.com for the reset code (valid 15 min)';
+        document.getElementById('otpPanel').style.display = 'block';
+        document.getElementById('otpInp').value = '';
+        setTimeout(function () { document.getElementById('otpInp').focus(); }, 100);
+      }, function () {
+        document.getElementById('lockErr').textContent = 'Email failed. Check EmailJS keys in Settings.';
+      });
+    });
+
+    /* ---- OTP verify ---- */
+    document.getElementById('otpVerify').addEventListener('click', function () {
+      var entered = document.getElementById('otpInp').value.trim();
+      var stored = null;
+      try { stored = JSON.parse(localStorage.getItem(OTP_KEY)); } catch (e) {}
+      if (!stored || Date.now() > stored.exp) {
+        document.getElementById('lockErr').textContent = 'Code expired. Request a new one.';
+        return;
+      }
+      if (entered !== stored.code) {
+        document.getElementById('lockErr').textContent = 'Wrong code. Try again.';
+        return;
+      }
+      localStorage.removeItem(OTP_KEY);
+      /* Show new-PIN panel */
+      document.getElementById('otpPanel').style.display = 'none';
+      document.getElementById('lockSub').textContent = 'Set your new PIN';
+      document.getElementById('newPinPanel').style.display = 'block';
+      document.getElementById('newPinInp').value = '';
+      document.getElementById('newPinConf').value = '';
+      setTimeout(function () { document.getElementById('newPinInp').focus(); }, 100);
+    });
+
+    document.getElementById('otpBack').addEventListener('click', function () { showLock('unlock'); });
+
+    /* ---- save new PIN ---- */
+    function saveNewPin() {
+      var p1 = document.getElementById('newPinInp').value.trim();
+      var p2 = document.getElementById('newPinConf').value.trim();
+      if (!/^\d{4,6}$/.test(p1)) { document.getElementById('lockErr').textContent = 'PIN must be 4–6 digits.'; return; }
+      if (p1 !== p2) { document.getElementById('lockErr').textContent = 'PINs do not match.'; return; }
+      localStorage.setItem(PIN_KEY, hashPin(p1));
+      hideLock();
+    }
+    document.getElementById('newPinSave').addEventListener('click', saveNewPin);
+    document.getElementById('newPinConf').addEventListener('keydown', function (e) { if (e.key === 'Enter') saveNewPin(); });
+
+    /* ---- Settings: Change PIN button ---- */
+    document.addEventListener('click', function (e) {
+      if (e.target && e.target.id === 'btnChangePIN') { showLock('setup'); }
+    });
+
+    /* ---- Settings: Save EmailJS keys ---- */
+    document.addEventListener('click', function (e) {
+      if (e.target && e.target.id === 'btnSaveEJS') {
+        var s = (document.getElementById('ejs-service') || {}).value || '';
+        var t2 = (document.getElementById('ejs-template') || {}).value || '';
+        var p = (document.getElementById('ejs-pubkey') || {}).value || '';
+        if (!s || !t2 || !p) { toast('Fill in all three EmailJS fields first.'); return; }
+        localStorage.setItem(EJS_KEY, JSON.stringify({ service: s.trim(), template: t2.trim(), pubkey: p.trim() }));
+        toast('EmailJS keys saved ✓');
+      }
+    });
+
+    /* ---- Populate EmailJS fields from storage on Settings load ---- */
+    function fillEJSFields() {
+      var ejs = getEJS();
+      var si = document.getElementById('ejs-service');
+      var ti = document.getElementById('ejs-template');
+      var pi = document.getElementById('ejs-pubkey');
+      if (si) si.value = ejs.service || '';
+      if (ti) ti.value = ejs.template || '';
+      if (pi) pi.value = ejs.pubkey || '';
+    }
+    document.querySelectorAll('[data-view="biz"],.tab[data-view="biz"]').forEach(function (el) {
+      el.addEventListener('click', function () { setTimeout(fillEJSFields, 50); });
+    });
+
+    /* ---- Keyboard support on lock screen ---- */
+    document.addEventListener('keydown', function (e) {
+      if (lockEl.style.display === 'none') return;
+      if (mode === 'setup' || mode === 'otp' || mode === 'newpin') return;
+      if (/^[0-9]$/.test(e.key) && pinBuf.length < 6) {
+        pinBuf += e.key; updateDots();
+        if (pinBuf.length === 6) tryUnlock();
+      } else if (e.key === 'Backspace') {
+        pinBuf = pinBuf.slice(0, -1); updateDots();
+      } else if (e.key === 'Enter' && pinBuf.length >= 4) {
+        tryUnlock();
+      }
+    });
+
+    /* ---- Init: show lock or setup ---- */
+    var stored = localStorage.getItem(PIN_KEY);
+    if (!stored) {
+      showLock('setup');
+    } else {
+      showLock('unlock');
+    }
+  })();
 
   loadScreenFonts();
   loadLocal();
