@@ -571,6 +571,7 @@ label.f .cust-wrap input {
       .pd{width:18px;height:18px;border-radius:50%;background:rgba(255,255,255,.2);border:2px solid rgba(255,255,255,.5);transition:all .15s;}
       .pd.filled{background:#fff;border-color:#fff;box-shadow:0 0 8px rgba(255,255,255,.6);}
       #pinEye:active{color:#fff;}
+      #newPinInp::placeholder,#newPinConf::placeholder{color:rgba(255,255,255,.4);}
       #lockErr{color:#fc8181;font-size:.85rem;min-height:1.2em;margin-bottom:12px;}
       #pinGrid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;max-width:260px;margin:0 auto 20px;}
       .pk{background:rgba(255,255,255,.12);border:none;border-radius:12px;color:#fff;font-size:1.4rem;font-weight:600;padding:18px;cursor:pointer;transition:background .15s;}
@@ -601,9 +602,9 @@ label.f .cust-wrap input {
     <div id="newPinPanel" style="display:none;margin-top:16px;">
       <p style="color:#a0aec0;font-size:.85rem;margin:0 0 10px;">Set a new PIN (4–6 digits)</p>
       <input id="newPinInp" type="password" inputmode="numeric" maxlength="6" placeholder="New PIN"
-        style="width:100%;padding:12px;border-radius:10px;border:none;font-size:1.3rem;text-align:center;letter-spacing:6px;margin-bottom:8px;box-sizing:border-box;">
+        style="width:100%;padding:12px;border-radius:10px;border:2px solid rgba(255,255,255,.3);font-size:1.3rem;text-align:center;letter-spacing:6px;margin-bottom:8px;box-sizing:border-box;background:#1e2a3a;color:#fff;caret-color:#fff;">
       <input id="newPinConf" type="password" inputmode="numeric" maxlength="6" placeholder="Confirm PIN"
-        style="width:100%;padding:12px;border-radius:10px;border:none;font-size:1.3rem;text-align:center;letter-spacing:6px;margin-bottom:12px;box-sizing:border-box;">
+        style="width:100%;padding:12px;border-radius:10px;border:2px solid rgba(255,255,255,.3);font-size:1.3rem;text-align:center;letter-spacing:6px;margin-bottom:12px;box-sizing:border-box;background:#1e2a3a;color:#fff;caret-color:#fff;">
       <button id="newPinSave" class="pk" style="width:100%;border-radius:10px;padding:14px;font-size:1rem;">Save PIN</button>
     </div>
   </div>

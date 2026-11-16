@@ -1,5 +1,5 @@
 /* Lakshmi Agency Billing – Service Worker */
-const CACHE = 'lakshmi-billing-v15';
+const CACHE = 'lakshmi-billing-v16';
 const ASSETS = [
   '/lakshmi-billing/',
   '/lakshmi-billing/index.html',
