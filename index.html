@@ -1434,9 +1434,8 @@ if (typeof module !== 'undefined' && module.exports) module.exports = InvoiceEng
 
     btn.addEventListener('mousedown', function (e) {
       e.preventDefault(); /* keep focus on input */
-      if (drop.classList.contains('open')) { close(); } else { openAll(); inp.focus(); }
+      if (drop.classList.contains('open')) { close(); } else { openAll(); }
     });
-    inp.addEventListener('focus', function () { openFiltered(); });
     inp.addEventListener('input', function () { openFiltered(); });
     drop.addEventListener('mousedown', function (e) {
       var li = e.target.closest('li');
