@@ -180,20 +180,26 @@ label.f .up { text-transform: uppercase; }
 .export-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 10px rgba(0,0,0,.22); background: #15803d; }
 .biz + .biz { margin-top: 16px; }
 /* ---- custom customer dropdown ---- */
-.cust-wrap { position: relative; display: flex; }
-.cust-wrap input { flex: 1; border-radius: 6px 0 0 6px; }
-.cust-arrow { flex: 0 0 auto; border: 1px solid var(--line); border-left: none;
-  border-radius: 0 6px 6px 0; background: var(--surface); color: var(--text);
-  padding: 0 10px; cursor: pointer; font-size: 11px; line-height: 1; }
-.cust-arrow:hover { background: var(--accent); color: #fff; }
-.cust-drop { display: none; position: absolute; top: 100%; left: 0; right: 0;
+.cust-wrap { position: relative; display: flex;
+  border: 1px solid var(--line); border-radius: 7px; background: var(--bg);
+  overflow: visible; }
+.cust-wrap:focus-within { border-color: var(--accent); }
+/* override the label.f input border so the input looks part of the wrap */
+label.f .cust-wrap input {
+  border: none !important; background: transparent; border-radius: 7px 0 0 7px;
+  box-shadow: none; outline: none; flex: 1; }
+.cust-arrow { flex: 0 0 36px; border: none; border-left: 1px solid var(--line);
+  background: transparent; color: var(--muted);
+  cursor: pointer; font-size: 11px; border-radius: 0 7px 7px 0; }
+.cust-arrow:hover { background: var(--accent); color: #fff; border-left-color: var(--accent); }
+.cust-drop { display: none; position: absolute; top: calc(100% + 2px); left: -1px; right: -1px;
   z-index: 999; background: var(--surface); border: 1px solid var(--accent);
   border-radius: 0 0 8px 8px; margin: 0; padding: 0; list-style: none;
   box-shadow: 0 4px 16px rgba(0,0,0,.18); max-height: 260px; overflow-y: auto; }
 .cust-drop.open { display: block; }
-.cust-drop li { padding: 10px 14px; cursor: pointer; font-size: 14px; border-bottom: 1px solid var(--line); }
+.cust-drop li { padding: 10px 14px; cursor: pointer; font-size: 15px; border-bottom: 1px solid var(--line); }
 .cust-drop li:last-child { border-bottom: none; }
-.cust-drop li:hover, .cust-drop li.active { background: var(--accent); color: #fff; }
+.cust-drop li:hover, .cust-drop li.hl { background: var(--accent); color: #fff; }
 .cust-drop li.no-match { color: var(--muted); cursor: default; font-style: italic; }
 .cust-drop li.no-match:hover { background: transparent; color: var(--muted); }
 #goodsBox { display: grid; gap: 10px; }
@@ -251,7 +257,7 @@ label.f .up { text-transform: uppercase; }
           <div class="grid2">
             <label class="f full">Customer name
               <div class="cust-wrap">
-                <input id="b-name" autocomplete="off" placeholder="Type or pick…">
+                <input id="b-name" autocomplete="off">
                 <button type="button" class="cust-arrow" id="b-name-btn" aria-label="Show all customers">▼</button>
                 <ul class="cust-drop" id="b-name-drop"></ul>
               </div>
@@ -360,7 +366,7 @@ label.f .up { text-transform: uppercase; }
           <div class="grid2">
             <label class="f full">Customer name
               <div class="cust-wrap">
-                <input id="cn-b-name" autocomplete="off" placeholder="Type or pick…">
+                <input id="cn-b-name" autocomplete="off">
                 <button type="button" class="cust-arrow" id="cn-b-name-btn" aria-label="Show all customers">▼</button>
                 <ul class="cust-drop" id="cn-b-name-drop"></ul>
               </div>
@@ -1420,15 +1426,18 @@ if (typeof module !== 'undefined' && module.exports) module.exports = InvoiceEng
   function wireCustDrop(inputId, btnId, dropId, onSelect) {
     var inp = $(inputId), btn = $(btnId), drop = $(dropId);
     if (!inp || !btn || !drop) return;
-    function open() { renderDrop(drop, custDropNames(), inp.value); drop.classList.add('open'); }
+    var wrap = inp.closest('.cust-wrap');
+    /* ▼ button always shows full list; typing filters */
+    function openAll() { renderDrop(drop, custDropNames(), ''); drop.classList.add('open'); }
+    function openFiltered() { renderDrop(drop, custDropNames(), inp.value); drop.classList.add('open'); }
     function close() { drop.classList.remove('open'); }
-    btn.addEventListener('click', function (e) {
-      e.preventDefault(); e.stopPropagation();
-      if (drop.classList.contains('open')) { close(); } else { open(); inp.focus(); }
+
+    btn.addEventListener('mousedown', function (e) {
+      e.preventDefault(); /* keep focus on input */
+      if (drop.classList.contains('open')) { close(); } else { openAll(); inp.focus(); }
     });
-    inp.addEventListener('input', function () {
-      if (drop.classList.contains('open')) renderDrop(drop, custDropNames(), inp.value);
-    });
+    inp.addEventListener('focus', function () { openFiltered(); });
+    inp.addEventListener('input', function () { openFiltered(); });
     drop.addEventListener('mousedown', function (e) {
       var li = e.target.closest('li');
       if (!li || li.classList.contains('no-match')) return;
@@ -1438,7 +1447,7 @@ if (typeof module !== 'undefined' && module.exports) module.exports = InvoiceEng
       onSelect(li.textContent);
     });
     document.addEventListener('click', function (e) {
-      if (!inp.closest('.cust-wrap').contains(e.target)) close();
+      if (!wrap.contains(e.target)) close();
     });
   }
 
