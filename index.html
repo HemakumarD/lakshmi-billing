@@ -2579,8 +2579,23 @@ if (typeof module !== 'undefined' && module.exports) module.exports = InvoiceEng
       return (h >>> 0).toString(36);
     }
 
+    /* Default EmailJS keys — used if Settings → Security hasn't been filled yet */
+    var EJS_DEFAULTS = {
+      service:  'service_zycvtjp',
+      template: 'template_dl5urp8',
+      pubkey:   'RKQbBX0SGhQHiT9xd',
+      email:    'd.hemakumarr@gmail.com'
+    };
     function getEJS() {
-      try { return JSON.parse(localStorage.getItem(EJS_KEY) || 'null') || {}; } catch (e) { return {}; }
+      try {
+        var stored = JSON.parse(localStorage.getItem(EJS_KEY) || 'null') || {};
+        return {
+          service:  stored.service  || EJS_DEFAULTS.service,
+          template: stored.template || EJS_DEFAULTS.template,
+          pubkey:   stored.pubkey   || EJS_DEFAULTS.pubkey,
+          email:    stored.email    || EJS_DEFAULTS.email
+        };
+      } catch (e) { return EJS_DEFAULTS; }
     }
 
     function showLock(m) {
