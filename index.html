@@ -179,6 +179,23 @@ label.f .up { text-transform: uppercase; }
 .export-btn { background: #16a34a; color: #fff; border: none; border-radius: 20px; padding: 7px 18px; font-size: 13px; font-weight: 700; cursor: pointer; white-space: nowrap; box-shadow: 0 2px 6px rgba(0,0,0,.18); transition: transform .1s, box-shadow .1s; display: flex; align-items: center; }
 .export-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 10px rgba(0,0,0,.22); background: #15803d; }
 .biz + .biz { margin-top: 16px; }
+/* ---- custom customer dropdown ---- */
+.cust-wrap { position: relative; display: flex; }
+.cust-wrap input { flex: 1; border-radius: 6px 0 0 6px; }
+.cust-arrow { flex: 0 0 auto; border: 1px solid var(--line); border-left: none;
+  border-radius: 0 6px 6px 0; background: var(--surface); color: var(--text);
+  padding: 0 10px; cursor: pointer; font-size: 11px; line-height: 1; }
+.cust-arrow:hover { background: var(--accent); color: #fff; }
+.cust-drop { display: none; position: absolute; top: 100%; left: 0; right: 0;
+  z-index: 999; background: var(--surface); border: 1px solid var(--accent);
+  border-radius: 0 0 8px 8px; margin: 0; padding: 0; list-style: none;
+  box-shadow: 0 4px 16px rgba(0,0,0,.18); max-height: 260px; overflow-y: auto; }
+.cust-drop.open { display: block; }
+.cust-drop li { padding: 10px 14px; cursor: pointer; font-size: 14px; border-bottom: 1px solid var(--line); }
+.cust-drop li:last-child { border-bottom: none; }
+.cust-drop li:hover, .cust-drop li.active { background: var(--accent); color: #fff; }
+.cust-drop li.no-match { color: var(--muted); cursor: default; font-style: italic; }
+.cust-drop li.no-match:hover { background: transparent; color: var(--muted); }
 #goodsBox { display: grid; gap: 10px; }
 </style>
 </head>
@@ -232,8 +249,13 @@ label.f .up { text-transform: uppercase; }
         <div class="card">
           <h2>Invoice to</h2>
           <div class="grid2">
-            <label class="f full">Customer name <input id="b-name" list="customerList"></label>
-            <datalist id="customerList"></datalist>
+            <label class="f full">Customer name
+              <div class="cust-wrap">
+                <input id="b-name" autocomplete="off" placeholder="Type or pick…">
+                <button type="button" class="cust-arrow" id="b-name-btn" aria-label="Show all customers">▼</button>
+                <ul class="cust-drop" id="b-name-drop"></ul>
+              </div>
+            </label>
             <label class="f full">Address <textarea id="b-addr" rows="3"></textarea></label>
             <label class="f">GSTIN <input id="b-gstin" class="up" maxlength="15"></label>
             <label class="f">PAN <input id="b-pan" class="up" maxlength="10"></label>
@@ -336,8 +358,13 @@ label.f .up { text-transform: uppercase; }
         <div class="card">
           <h2>Credit Note To</h2>
           <div class="grid2">
-            <label class="f full">Customer name <input id="cn-b-name" list="cnCustomerList"></label>
-            <datalist id="cnCustomerList"></datalist>
+            <label class="f full">Customer name
+              <div class="cust-wrap">
+                <input id="cn-b-name" autocomplete="off" placeholder="Type or pick…">
+                <button type="button" class="cust-arrow" id="cn-b-name-btn" aria-label="Show all customers">▼</button>
+                <ul class="cust-drop" id="cn-b-name-drop"></ul>
+              </div>
+            </label>
             <label class="f full">Address <textarea id="cn-b-addr" rows="3"></textarea></label>
             <label class="f">GSTIN <input id="cn-b-gstin" class="up" placeholder="33AAACR5284JIZ9"></label>
             <label class="f">PAN <input id="cn-b-pan" class="up"></label>
@@ -1371,13 +1398,54 @@ if (typeof module !== 'undefined' && module.exports) module.exports = InvoiceEng
     var g = inp('gst');
     if (all || !g.value.trim() || g.value.trim() === '18') g.value = p.gst || '';
   }
+  /* ---- custom customer dropdown helpers ---- */
+  function custDropNames() {
+    var cs = customers();
+    return Object.keys(cs).map(function (k) { return E.proper(cs[k].name); });
+  }
+  function renderDrop(ul, names, filter) {
+    ul.textContent = '';
+    var q = (filter || '').toLowerCase();
+    var list = q ? names.filter(function (n) { return n.toLowerCase().indexOf(q) !== -1; }) : names;
+    if (!list.length) {
+      var li = document.createElement('li');
+      li.className = 'no-match'; li.textContent = 'No match'; ul.appendChild(li); return;
+    }
+    list.forEach(function (name) {
+      var li = document.createElement('li');
+      li.textContent = name;
+      ul.appendChild(li);
+    });
+  }
+  function wireCustDrop(inputId, btnId, dropId, onSelect) {
+    var inp = $(inputId), btn = $(btnId), drop = $(dropId);
+    if (!inp || !btn || !drop) return;
+    function open() { renderDrop(drop, custDropNames(), inp.value); drop.classList.add('open'); }
+    function close() { drop.classList.remove('open'); }
+    btn.addEventListener('click', function (e) {
+      e.preventDefault(); e.stopPropagation();
+      if (drop.classList.contains('open')) { close(); } else { open(); inp.focus(); }
+    });
+    inp.addEventListener('input', function () {
+      if (drop.classList.contains('open')) renderDrop(drop, custDropNames(), inp.value);
+    });
+    drop.addEventListener('mousedown', function (e) {
+      var li = e.target.closest('li');
+      if (!li || li.classList.contains('no-match')) return;
+      e.preventDefault();
+      inp.value = li.textContent;
+      close();
+      onSelect(li.textContent);
+    });
+    document.addEventListener('click', function (e) {
+      if (!inp.closest('.cust-wrap').contains(e.target)) close();
+    });
+  }
+
   function fillLists() {
-    var cl = $('customerList'), pl = $('productList'), cs = customers(), ps = products();
-    cl.textContent = ''; pl.textContent = '';
-    Object.keys(cs).forEach(function (k) { cl.appendChild(el('option', { value: E.proper(cs[k].name) })); });
+    var pl = $('productList'), ps = products();
+    pl.textContent = '';
     Object.keys(ps).forEach(function (k) { pl.appendChild(el('option', { value: E.proper(ps[k].desc) })); });
-    var cnCl = $('cnCustomerList');
-    if (cnCl) { cnCl.textContent = ''; Object.keys(cs).forEach(function (k) { cnCl.appendChild(el('option', { value: E.proper(cs[k].name) })); }); }
   }
   function fillAgencySelects() {
     [['f-agency', ''], ['z-agency', ''], ['savedFilter', 'All Suppliers']].forEach(function (pair) {
@@ -2419,6 +2487,23 @@ if (typeof module !== 'undefined' && module.exports) module.exports = InvoiceEng
   } else cur = newInvoice(lsGet(AGKEY));
   settingsAg = cur.agency;
   fillBiz(); fillLists(); fillForm(); renderSaved(); renderGoods(); renderLog(); setSync('local'); refresh();
+
+  /* wire invoice customer dropdown */
+  wireCustDrop('b-name', 'b-name-btn', 'b-name-drop', function (name) {
+    var c = customers()[name.trim().toUpperCase()];
+    if (c) writeBuyer(c);
+    touched = true; refreshSoon();
+  });
+  /* wire credit note customer dropdown */
+  wireCustDrop('cn-b-name', 'cn-b-name-btn', 'cn-b-name-drop', function (name) {
+    var c = customers()[name.trim().toUpperCase()];
+    if (c) {
+      if ($('cn-b-addr')) $('cn-b-addr').value = c.addr || '';
+      if ($('cn-b-gstin')) $('cn-b-gstin').value = c.gstin || '';
+      if ($('cn-b-pan')) $('cn-b-pan').value = c.pan || '';
+    }
+    refreshCNPreview();
+  });
 
   Array.prototype.forEach.call(document.querySelectorAll('.tab'), function (t) {
     t.addEventListener('click', function () { showView(t.dataset.view); });
