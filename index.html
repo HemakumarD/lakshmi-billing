@@ -857,10 +857,11 @@ var InvoiceEngine = (function () {
       contentH = ry2 + (dl.length - 1) * LINE - yB;
       ry2 += dl.length * LINE + ROW_GAP;
     });
-    /* CN landscape page is 210mm tall — use reduced bottomH and MIN_BODY */
-    var bottomH = isCN ? 44 : 58.5, totalH = 5.4, stripH = 4.6;
+    /* CN landscape page is 210mm tall — bottomH raised to 62 so seal/signature
+       matches the invoice; MIN_BODY for CN reduced to 15 to stay within page */
+    var bottomH = isCN ? 62 : 58.5, totalH = 5.4, stripH = 4.6;
     var maxBody = (isCN ? 198 : 282.5) - stripH - bottomH - totalH - yB;
-    var bodyH = Math.max(isCN ? 22 : MIN_BODY, contentH + 4);
+    var bodyH = Math.max(isCN ? 15 : MIN_BODY, contentH + 4);
     var overflow = bodyH > maxBody + 0.01;
     if (overflow) bodyH = maxBody;
     var yBody = yB + bodyH;
