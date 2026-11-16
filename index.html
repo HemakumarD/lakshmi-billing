@@ -560,12 +560,17 @@ label.f .cust-wrap input {
     <p id="lockSub" style="margin:0 0 32px;font-size:.9rem;color:#a0aec0;">Enter your PIN to continue</p>
 
     <!-- PIN dots -->
-    <div id="pinDots" style="display:flex;justify-content:center;gap:14px;margin-bottom:28px;">
-      <span class="pd"></span><span class="pd"></span><span class="pd"></span><span class="pd"></span><span class="pd"></span><span class="pd"></span>
+    <div style="position:relative;display:flex;align-items:center;justify-content:center;margin-bottom:28px;">
+      <div id="pinDots" style="display:flex;justify-content:center;gap:14px;">
+        <span class="pd"></span><span class="pd"></span><span class="pd"></span><span class="pd"></span><span class="pd"></span><span class="pd"></span>
+      </div>
+      <div id="pinPlain" style="display:none;font-size:1.8rem;font-weight:700;color:#fff;letter-spacing:10px;min-width:180px;text-align:center;"></div>
+      <button id="pinEye" title="Show/hide PIN" style="position:absolute;right:-36px;background:transparent;border:none;color:rgba(255,255,255,.6);font-size:1.2rem;cursor:pointer;padding:4px;">👁</button>
     </div>
     <style>
-      .pd{width:14px;height:14px;border-radius:50%;background:rgba(255,255,255,.25);transition:background .15s;}
-      .pd.filled{background:#fff;}
+      .pd{width:18px;height:18px;border-radius:50%;background:rgba(255,255,255,.2);border:2px solid rgba(255,255,255,.5);transition:all .15s;}
+      .pd.filled{background:#fff;border-color:#fff;box-shadow:0 0 8px rgba(255,255,255,.6);}
+      #pinEye:active{color:#fff;}
       #lockErr{color:#fc8181;font-size:.85rem;min-height:1.2em;margin-bottom:12px;}
       #pinGrid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;max-width:260px;margin:0 auto 20px;}
       .pk{background:rgba(255,255,255,.12);border:none;border-radius:12px;color:#fff;font-size:1.4rem;font-weight:600;padding:18px;cursor:pointer;transition:background .15s;}
@@ -2608,10 +2613,33 @@ if (typeof module !== 'undefined' && module.exports) module.exports = InvoiceEng
       lockEl.style.display = 'none';
     }
 
+    var eyeOn = false;
     function updateDots() {
       var dots = document.querySelectorAll('#pinDots .pd');
       dots.forEach(function (d, i) { d.classList.toggle('filled', i < pinBuf.length); });
+      var plain = document.getElementById('pinPlain');
+      if (plain) plain.textContent = pinBuf;
     }
+
+    /* ---- eye toggle ---- */
+    document.getElementById('pinEye').addEventListener('click', function () {
+      eyeOn = !eyeOn;
+      var dotsEl = document.getElementById('pinDots');
+      var plainEl = document.getElementById('pinPlain');
+      var eyeEl = document.getElementById('pinEye');
+      if (eyeOn) {
+        dotsEl.style.display = 'none';
+        plainEl.style.display = 'block';
+        eyeEl.textContent = '🙈';
+        eyeEl.style.color = '#fff';
+      } else {
+        dotsEl.style.display = 'flex';
+        plainEl.style.display = 'none';
+        eyeEl.textContent = '👁';
+        eyeEl.style.color = 'rgba(255,255,255,.6)';
+      }
+      updateDots();
+    });
 
     function tryUnlock() {
       var stored = localStorage.getItem(PIN_KEY);
