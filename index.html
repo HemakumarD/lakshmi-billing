@@ -2427,6 +2427,11 @@ if (typeof module !== 'undefined' && module.exports) module.exports = InvoiceEng
   $('billForm').addEventListener('submit', function (e) { e.preventDefault(); });
   $('billForm').addEventListener('input', function (e) {
     var t = e.target;
+    /* Autofill customer when name matches (handles datalist selection on all browsers) */
+    if (t.id === 'b-name') {
+      var c = customers()[t.value.trim().toUpperCase()];
+      if (c) writeBuyer(c);
+    }
     /* Autofill HSN/rate/GST when desc matches a product exactly (handles datalist selection on all browsers) */
     if (t.dataset && t.dataset.k === 'desc') {
       var p = listed(t.value);
@@ -2553,11 +2558,19 @@ if (typeof module !== 'undefined' && module.exports) module.exports = InvoiceEng
   $('cn-b-name').addEventListener('input', function () {
     var name = $('cn-b-name').value.trim();
     if (!name) return;
-    var all = Object.values(docs).filter(function (d) { return d.buyer && E.proper(d.buyer.name).toLowerCase() === name.toLowerCase() && d.agency === curCN.agency; });
-    if (all.length && $('cn-b-addr') && !$('cn-b-addr').value) {
-      $('cn-b-addr').value = all[0].buyer.addr || '';
-      $('cn-b-gstin').value = all[0].buyer.gstin || '';
-      $('cn-b-pan').value = all[0].buyer.pan || '';
+    /* Check DEFAULT_CUSTOMERS first, then saved invoices */
+    var c = customers()[name.toUpperCase()];
+    if (c && $('cn-b-addr') !== null) {
+      $('cn-b-addr').value = c.addr || '';
+      $('cn-b-gstin').value = c.gstin || '';
+      $('cn-b-pan').value = c.pan || '';
+    } else {
+      var all = Object.values(docs).filter(function (d) { return d.buyer && E.proper(d.buyer.name).toLowerCase() === name.toLowerCase() && d.agency === curCN.agency; });
+      if (all.length && $('cn-b-addr') && !$('cn-b-addr').value) {
+        $('cn-b-addr').value = all[0].buyer.addr || '';
+        $('cn-b-gstin').value = all[0].buyer.gstin || '';
+        $('cn-b-pan').value = all[0].buyer.pan || '';
+      }
     }
     refreshCNPreview();
   });
