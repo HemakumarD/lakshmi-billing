@@ -1387,9 +1387,9 @@ if (typeof module !== 'undefined' && module.exports) module.exports = InvoiceEng
         el('div', { class: 'item-top' }, [field('Description of goods', 'desc', i, it.desc, { list: 'productList' }), rm]),
         el('div', { class: 'item-nums' }, [
           field('HSN code', 'hsn', i, it.hsn, { inputmode: 'numeric' }),
-          field('Qty (' + qtyLabel + ')', 'qty', i, it.qty, { inputmode: 'decimal' }),
-          field('Rate', 'rate', i, it.rate, { inputmode: 'decimal' }),
-          field('GST %', 'gst', i, it.gst, { inputmode: 'decimal', list: 'gstList' })
+          field('Qty (' + qtyLabel + ')', 'qty', i, it.qty, { inputmode: 'decimal', pattern: '[0-9]*\\.?[0-9]*' }),
+          field('Rate', 'rate', i, it.rate, { inputmode: 'decimal', pattern: '[0-9]*\\.?[0-9]*' }),
+          field('GST %', 'gst', i, it.gst, { inputmode: 'decimal', list: 'gstList', pattern: '[0-9]*\\.?[0-9]*' })
         ]),
         el('div', { class: 'item-sum', id: 'it-sum-' + i })
       ]));
@@ -2533,6 +2533,23 @@ if (typeof module !== 'undefined' && module.exports) module.exports = InvoiceEng
     }
     touched = true; refreshSoon();
   });
+  /* Block non-numeric keys in qty / rate / gst / hsn fields */
+  $('billForm').addEventListener('keydown', function (e) {
+    var k = e.dataset && e.dataset.k;
+    var t = e.target;
+    if (!t.dataset) return;
+    var dk = t.dataset.k;
+    if (dk === 'qty' || dk === 'rate' || dk === 'gst' || dk === 'hsn') {
+      /* Allow: digits, dot (for qty/rate/gst), Backspace, Delete, Tab, arrows, Home, End */
+      var allowed = ['Backspace','Delete','Tab','ArrowLeft','ArrowRight','Home','End','Enter'];
+      if (allowed.indexOf(e.key) !== -1) return;
+      if (e.ctrlKey || e.metaKey) return; /* allow copy/paste/select-all */
+      if (/^[0-9]$/.test(e.key)) return;
+      if ((dk === 'qty' || dk === 'rate' || dk === 'gst') && e.key === '.') return;
+      e.preventDefault(); /* block everything else */
+    }
+  });
+
   $('f-copy').addEventListener('change', refresh);
   $('billForm').addEventListener('change', function (e) {
     var t = e.target;
@@ -2674,6 +2691,18 @@ if (typeof module !== 'undefined' && module.exports) module.exports = InvoiceEng
   $('cn-t-mode').addEventListener('change', refreshCNPreview);
   $('cn-t-ro').addEventListener('change', refreshCNPreview);
   $('cnFilter').addEventListener('change', function () { renderCNList(); });
+  /* Block non-numeric keys in CN qty / rate / gst / hsn fields */
+  $('cn-items').addEventListener('keydown', function (e) {
+    var t = e.target, dk = t.dataset && t.dataset.k;
+    if (dk === 'qty' || dk === 'rate' || dk === 'gst' || dk === 'hsn') {
+      var allowed = ['Backspace','Delete','Tab','ArrowLeft','ArrowRight','Home','End','Enter'];
+      if (allowed.indexOf(e.key) !== -1) return;
+      if (e.ctrlKey || e.metaKey) return;
+      if (/^[0-9]$/.test(e.key)) return;
+      if ((dk === 'qty' || dk === 'rate' || dk === 'gst') && e.key === '.') return;
+      e.preventDefault();
+    }
+  });
 
   /* When "Against Invoice No" is filled, copy items + buyer from that invoice */
   $('cn-orig-no').addEventListener('change', function () {
