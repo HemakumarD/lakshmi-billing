@@ -2315,7 +2315,7 @@ if (typeof module !== 'undefined' && module.exports) module.exports = InvoiceEng
     (curCN.items || [blankItem()]).forEach(function (it, i) {
       var row = document.createElement('div'); row.className = 'item';
       row.innerHTML = '<div class="item-grid">' +
-        '<label class="f i-desc">Description <input data-k="desc" value="' + esc(it.desc || '') + '" list="goodsList"></label>' +
+        '<label class="f i-desc">Description <input data-k="desc" value="' + esc(it.desc || '') + '" list="productList"></label>' +
         '<label class="f i-hsn">HSN <input data-k="hsn" value="' + esc(it.hsn || '') + '" inputmode="numeric" maxlength="8"></label>' +
         '<label class="f i-qty">Qty <input data-k="qty" value="' + esc(it.qty || '') + '" inputmode="decimal"></label>' +
         '<label class="f i-rate">Rate <input data-k="rate" value="' + esc(it.rate || '') + '" inputmode="decimal"></label>' +
@@ -2691,6 +2691,14 @@ if (typeof module !== 'undefined' && module.exports) module.exports = InvoiceEng
   $('cn-t-mode').addEventListener('change', refreshCNPreview);
   $('cn-t-ro').addEventListener('change', refreshCNPreview);
   $('cnFilter').addEventListener('change', function () { renderCNList(); });
+  /* Autofill HSN/rate/GST when CN desc matches a product exactly */
+  $('cn-items').addEventListener('input', function (e) {
+    var t = e.target;
+    if (t.dataset && t.dataset.k === 'desc') {
+      var p = listed(t.value);
+      if (p) { applyProduct(t.closest('.item'), p, false); }
+    }
+  });
   /* Block non-numeric keys in CN qty / rate / gst / hsn fields */
   $('cn-items').addEventListener('keydown', function (e) {
     var t = e.target, dk = t.dataset && t.dataset.k;
